@@ -2,6 +2,7 @@ import hashlib
 import logging
 import math
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,21 @@ from app.core.errors import ExternalServiceError
 
 
 class EmbeddingService:
-    def __init__(self, client: OpenAI | None = None):
+    def __init__(self, client: Any | None = None):
         self._client = client
 
     @property
-    def client(self) -> OpenAI:
+    def client(self) -> Any:
         if self._client is None:
-            self._client = OpenAI(api_key=settings.openai_api_key_str, timeout=settings.request_timeout_seconds)
+            if settings.ai_provider == "gemini":
+                from google import genai
+
+                self._client = genai.Client(
+                    api_key=settings.gemini_api_key_str,
+                    http_options={"timeout": settings.request_timeout_seconds * 1000},
+                )
+            else:
+                self._client = OpenAI(api_key=settings.openai_api_key_str, timeout=settings.request_timeout_seconds)
         return self._client
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(settings.openai_max_retries), reraise=True)
@@ -29,11 +38,26 @@ class EmbeddingService:
         if self._client is None and _use_local_ai():
             return [_local_embedding(text) for text in texts]
         try:
-            response = self.client.embeddings.create(
-                model=settings.openai_embedding_model,
-                input=texts,
-                dimensions=settings.embedding_dimension,
-            )
+            if self._uses_gemini_client():
+                response = self.client.models.embed_content(
+                    model=settings.gemini_embedding_model,
+                    contents=texts,
+                    config={
+                        "task_type": "RETRIEVAL_DOCUMENT",
+                        "output_dimensionality": settings.embedding_dimension,
+                    },
+                )
+                vectors = [
+                    embedding.values
+                    for embedding in (getattr(response, "embeddings", None) or [])
+                ]
+            else:
+                response = self.client.embeddings.create(
+                    model=settings.openai_embedding_model,
+                    input=texts,
+                    dimensions=settings.embedding_dimension,
+                )
+                vectors = [item.embedding for item in response.data]
         except Exception as exc:
             # Graceful degradation: when the embedding provider is unavailable
             # (e.g. network errors, unsupported endpoints, rate limits), fall
@@ -50,12 +74,18 @@ class EmbeddingService:
             )
             return [_local_embedding(text) for text in texts]
 
-        vectors = [item.embedding for item in response.data]
         if len(vectors) != len(texts):
             raise ExternalServiceError("Embedding provider returned an unexpected number of vectors")
         if any(len(vector) != settings.embedding_dimension for vector in vectors):
             raise ExternalServiceError("Embedding provider returned vectors with an unexpected dimension")
         return vectors
+
+    def _uses_gemini_client(self) -> bool:
+        return (
+            self._client is None and settings.ai_provider == "gemini"
+        ) or (
+            self._client is not None and hasattr(self._client, "models")
+        )
 
     def embed_query(self, query: str) -> list[float]:
         return self.embed_texts([query])[0]
@@ -65,7 +95,7 @@ TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 
 
 def _use_local_ai() -> bool:
-    return settings.app_env.lower() in {"local", "demo"} and settings.openai_api_key_str in {"", "replace-me", "test-key"}
+    return settings.ai_provider == "local"
 
 
 def _local_embedding(text: str) -> list[float]:

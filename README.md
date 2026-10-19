@@ -12,7 +12,7 @@ A citation-gated retrieval-augmented generation (RAG) platform with full query t
 - **Document-level access control.** API keys carry a `user_id` and group memberships; ACL checks filter which documents a key can retrieve from.
 - **Durable ingestion jobs.** PDF uploads become tracked jobs with queued → processing → completed/failed lifecycle and a status endpoint.
 - **Evaluation gates.** A golden-QA eval runner (`evals/run_eval.py`) checks retrieval quality, faithfulness, and citation coverage.
-- **Graceful degradation.** A deterministic local mode (text hashing for embeddings, template-based answers) allows offline smoke tests and CI without API keys; production uses OpenAI embeddings and chat.
+- **Graceful degradation.** A deterministic local mode (text hashing for embeddings, template-based answers) allows offline smoke tests and CI without API keys; production can use Gemini or OpenAI embeddings and chat.
 - **Operator console.** A Next.js App Router dashboard for ingestion, chat with citation inspection, trace review, and settings.
 
 ## Architecture and End-to-End Workflow
@@ -49,7 +49,7 @@ PDF documents (text-extractable, via `pypdf`). The parser reports `No extractabl
 | Backend API | FastAPI, Pydantic v2, SQLAlchemy, uvicorn |
 | Database | SQLite (local/demo mode) or Postgres + pgvector (production); migrations via Alembic |
 | Retrieval | Local paragraph-aware token-window chunker, BM25, local vector search (SQLite), reranker |
-| LLM / embeddings | OpenAI (`OPENAI_API_KEY` required in production); deterministic local fallback when the key is unset/replaced |
+| LLM / embeddings | Gemini by default (`GEMINI_API_KEY`) or OpenAI (`OPENAI_API_KEY`); deterministic local fallback for offline smoke tests |
 | Storage | Local filesystem (`LOCAL_STORAGE_PATH`) or S3-compatible (`S3_BUCKET` + endpoint) |
 | Reliability | In-memory/Redis rate limiting, structured JSON logging, request trace IDs, readiness checks |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn-style primitives |
@@ -159,8 +159,11 @@ Open `http://localhost:3000`. The `/settings` page can override the API base URL
 | `APP_ENV` | `local`, `demo`, `test`, or `production` |
 | `DATABASE_URL` | `sqlite:///...` for local/demo, `postgresql+psycopg://...` for Postgres + pgvector |
 | `ADMIN_API_KEYS` / `USER_API_KEYS` | Auth keys; user keys use `key:user_id:group1,group2` format |
-| `OPENAI_API_KEY` | Required in production for embeddings and answers |
-| `OPENAI_EMBEDDING_MODEL` / `OPENAI_CHAT_MODEL` | Model selection |
+| `AI_PROVIDER` | `gemini`, `openai`, or `local` |
+| `GEMINI_API_KEY` | Required when `AI_PROVIDER=gemini` in production |
+| `GEMINI_EMBEDDING_MODEL` / `GEMINI_CHAT_MODEL` | Gemini model selection |
+| `OPENAI_API_KEY` | Required when `AI_PROVIDER=openai` in production |
+| `OPENAI_EMBEDDING_MODEL` / `OPENAI_CHAT_MODEL` | OpenAI model selection |
 | `STORAGE_BACKEND` | `local` or `s3` (with `S3_*` vars) |
 | `RATE_LIMIT_ENABLED` / `RATE_LIMIT_BACKEND` | `memory` locally, `redis` + `REDIS_URL` in production |
 | `INGESTION_MODE` | `sync` (inline processing, serverless-friendly) or unset (background worker via `python -m app.workers.ingestion_worker`) |

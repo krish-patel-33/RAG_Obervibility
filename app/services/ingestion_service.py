@@ -104,7 +104,7 @@ class IngestionService:
                 version=1,
                 parser_version=PARSER_VERSION,
                 chunker_version=CHUNKER_VERSION,
-                embedding_model=settings.openai_embedding_model,
+                embedding_model=settings.active_embedding_model,
                 embedding_dimension=settings.embedding_dimension,
                 status="completed",
                 active=True,
