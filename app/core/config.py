@@ -67,9 +67,13 @@ class Settings(BaseSettings):
     s3_secret_access_key: SecretStr | None = Field(default=None, repr=False)
 
     # LLM Configuration
+    ai_provider: Literal["local", "openai", "gemini"] = "local"
     openai_api_key: SecretStr = Field(default="", repr=False)
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str = "gpt-4-turbo"
+    gemini_api_key: SecretStr = Field(default="", repr=False)
+    gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_chat_model: str = "gemini-2.5-flash"
     embedding_dimension: int = 1536
     estimated_input_cost_per_1m_tokens: float = 0.0
     estimated_output_cost_per_1m_tokens: float = 0.0
@@ -144,6 +148,18 @@ class Settings(BaseSettings):
     def openai_api_key_str(self) -> str:
         """Get OpenAI API key as string."""
         return _secret_to_str(self.openai_api_key)
+
+    @property
+    def gemini_api_key_str(self) -> str:
+        return _secret_to_str(self.gemini_api_key)
+
+    @property
+    def active_embedding_model(self) -> str:
+        return self.gemini_embedding_model if self.ai_provider == "gemini" else self.openai_embedding_model
+
+    @property
+    def active_chat_model(self) -> str:
+        return self.gemini_chat_model if self.ai_provider == "gemini" else self.openai_chat_model
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -225,12 +241,16 @@ class Settings(BaseSettings):
         if is_prod and not is_demo and not self.database_url_str.startswith("postgresql"):
             logger.warning("DATABASE_URL should use PostgreSQL in production")
 
-        # OpenAI API Key validation
+        # External AI provider key validation
         if is_prod and not is_demo:
-            openai_key = self.openai_api_key_str
-            if not openai_key or openai_key in {"replace-me", "test-key", ""}:
+            api_key = (
+                self.gemini_api_key_str
+                if self.ai_provider == "gemini"
+                else self.openai_api_key_str
+            )
+            if not api_key or api_key in {"replace-me", "test-key", ""}:
                 raise ValueError(
-                    "A real OPENAI_API_KEY is required in production"
+                    f"A real API key is required for the {self.ai_provider} provider in production"
                 )
 
         # Admin API Keys validation

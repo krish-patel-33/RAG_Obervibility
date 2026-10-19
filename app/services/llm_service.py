@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import re
+from typing import Any
 
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -17,13 +18,21 @@ class LLMResult:
 
 
 class LLMService:
-    def __init__(self, client: OpenAI | None = None):
+    def __init__(self, client: Any | None = None):
         self._client = client
 
     @property
-    def client(self) -> OpenAI:
+    def client(self) -> Any:
         if self._client is None:
-            self._client = OpenAI(api_key=settings.openai_api_key_str, timeout=settings.request_timeout_seconds)
+            if settings.ai_provider == "gemini":
+                from google import genai
+
+                self._client = genai.Client(
+                    api_key=settings.gemini_api_key_str,
+                    http_options={"timeout": settings.request_timeout_seconds * 1000},
+                )
+            else:
+                self._client = OpenAI(api_key=settings.openai_api_key_str, timeout=settings.request_timeout_seconds)
         return self._client
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(settings.openai_max_retries), reraise=True)
@@ -40,6 +49,19 @@ class LLMService:
         user_prompt = f"QUESTION:\n{question}\n\nSOURCE_CONTEXT:\n{source_context}"
 
         try:
+            if self._uses_gemini_client():
+                response = self.client.models.generate_content(
+                    model=settings.gemini_chat_model,
+                    contents=user_prompt,
+                    config={"system_instruction": system_prompt},
+                )
+                usage = getattr(response, "usage_metadata", None)
+                return self._result_from_text(
+                    getattr(response, "text", None),
+                    getattr(usage, "prompt_token_count", None) if usage else None,
+                    getattr(usage, "candidates_token_count", None) if usage else None,
+                    getattr(usage, "total_token_count", None) if usage else None,
+                )
             response = self.client.responses.create(
                 model=settings.openai_chat_model,
                 input=[
@@ -77,13 +99,36 @@ class LLMService:
             total_tokens=getattr(usage, "total_tokens", None) if usage else None,
         )
 
+    def _uses_gemini_client(self) -> bool:
+        return (
+            self._client is None and settings.ai_provider == "gemini"
+        ) or (
+            self._client is not None and hasattr(self._client, "models")
+        )
+
+    @staticmethod
+    def _result_from_text(
+        answer_text: str | None,
+        prompt_tokens: int | None,
+        completion_tokens: int | None,
+        total_tokens: int | None,
+    ) -> LLMResult:
+        if not answer_text or not answer_text.strip():
+            raise ExternalServiceError("LLM provider returned an empty answer")
+        return LLMResult(
+            answer=answer_text.strip(),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
+
 
 SOURCE_BLOCK_RE = re.compile(r"\[(S\d+)\][^\n]*\n(?P<text>.*?)(?=\n\n---\n\n|\Z)", re.S)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 def _use_local_ai() -> bool:
-    return settings.app_env.lower() in {"local", "demo"} and settings.openai_api_key_str in {"", "replace-me", "test-key"}
+    return settings.ai_provider == "local"
 
 
 def _local_answer(source_context: str) -> str:
