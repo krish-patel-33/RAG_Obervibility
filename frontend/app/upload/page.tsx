@@ -1,19 +1,40 @@
 "use client";
 
-import { Clock3, FileText } from "lucide-react";
+import { useState } from "react";
+import { Clock3, FileText, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { useConsoleStore } from "@/lib/store";
+import { useConsoleSettings } from "@/lib/settings";
 import { useApi } from "@/lib/use-api";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusChip } from "@/components/status-chip";
 import { ErrorState } from "@/components/error-state";
+import { Button } from "@/components/ui/button";
+import type { DocumentSummary } from "@/lib/types";
 
 export default function UploadPage() {
   const { jobs } = useConsoleStore();
+  const { client } = useConsoleSettings();
   const documents = useApi((client) => client.documents(), []);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function deleteDocument(doc: DocumentSummary) {
+    if (!window.confirm(`Delete "${doc.filename}"? It will no longer be used to answer questions.`)) return;
+    setDeletingId(doc.id);
+    setDeleteError(null);
+    try {
+      await client.deleteDocument(doc.id);
+      await documents.reload();
+    } catch (caught) {
+      setDeleteError(caught instanceof Error ? caught.message : "Delete failed.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div>
@@ -28,6 +49,7 @@ export default function UploadPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {documents.error && <ErrorState title="Could not load documents" message={documents.error} />}
+              {deleteError && <ErrorState title="Could not delete document" message={deleteError} />}
               {(documents.data ?? []).length === 0 && !documents.loading && (
                 <div className="rounded-md border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">Nothing indexed yet.</div>
               )}
@@ -42,7 +64,20 @@ export default function UploadPage() {
                       </div>
                     </div>
                   </div>
-                  <Badge className="capitalize">{doc.visibility}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="capitalize">{doc.visibility}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
+                      disabled={deletingId !== null}
+                      onClick={() => deleteDocument(doc)}
+                      aria-label={`Delete ${doc.filename}`}
+                    >
+                      {deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>

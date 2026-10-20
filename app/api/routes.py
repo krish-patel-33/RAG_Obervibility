@@ -2,12 +2,12 @@ import logging
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import AuthContext, require_auth
 from app.core.config import settings
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.db.session import get_db
 from app.models.chunk import Chunk
 from app.models.citation import Citation
@@ -112,6 +112,49 @@ def list_documents(db: Session = Depends(get_db), auth: AuthContext = Depends(re
         for document in documents
         if can_access_document(document, auth)
     ]
+
+
+@router.delete("/documents/{document_id}")
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_auth),
+) -> dict:
+    document = db.get(Document, document_id, options=[joinedload(Document.versions)])
+    if document is None or not can_access_document(document, auth):
+        raise NotFoundError("Document not found")
+    # Readers of a shared document must not be able to remove it for everyone.
+    if not auth.is_admin and document.owner_id != auth.user_id:
+        raise ForbiddenError("Only the document owner or an admin can delete this document")
+
+    artifact_uris = {document.raw_file_uri, *(version.parsed_text_uri for version in document.versions)}
+    jobs = db.execute(select(IngestionJob).where(IngestionJob.document_id == document_id)).scalars().all()
+    for job in jobs:
+        artifact_uris.update({job.raw_file_uri, job.parsed_text_uri})
+
+    # SQLite does not enforce ON DELETE actions by default, so detach the
+    # rows that outlive the document explicitly. Past answers keep their
+    # citation text; only the link to the deleted chunk is cleared.
+    chunk_ids = select(Chunk.id).where(Chunk.document_id == document_id)
+    db.execute(update(Citation).where(Citation.chunk_id.in_(chunk_ids)).values(chunk_id=None))
+    db.execute(
+        update(IngestionJob)
+        .where(IngestionJob.document_id == document_id)
+        .values(document_id=None, document_version_id=None)
+    )
+    filename = document.filename
+    db.delete(document)
+    db.commit()
+
+    storage = ingestion_service.storage_backend
+    for uri in artifact_uris - {None}:
+        try:
+            storage.delete(uri)
+        except Exception:
+            # The index rows are gone, so a leftover file is harmless.
+            logger.warning("document_artifact_delete_failed", extra={"event": "document_artifact_delete_failed"})
+    logger.info("document_deleted", extra={"event": "document_deleted"})
+    return {"deleted": True, "document_id": document_id, "filename": filename}
 
 
 @router.get("/ingestion-jobs/{job_id}", response_model=IngestionJobResponse)

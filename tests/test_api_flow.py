@@ -159,3 +159,31 @@ def test_evaluation_run_reports_ground_truth_metrics_and_compares(client, policy
 def test_dataset_validation_requires_expected_documents(client):
     response = client.post("/api/v1/evaluation/datasets", json={"name": "bad", "cases": [{"question": "Answerable but no source?"}]}, headers=USER)
     assert response.status_code == 422
+
+
+def test_owner_can_delete_document_and_it_stops_being_retrieved(client):
+    upload = client.post(
+        "/api/v1/documents/ingest",
+        files={"file": ("hostel_rules.txt", b"Hostel gates close at 10 pm and visitors must sign the register.", "text/plain")},
+        headers=USER,
+    ).json()
+    document_id = upload["document_id"]
+    question = "When do the hostel gates close?"
+    assert not _ask(client, question)["no_answer"]
+
+    # Another user cannot see the private document, and so cannot delete it.
+    assert client.delete(f"/api/v1/documents/{document_id}", headers=OTHER_USER).status_code == 404
+
+    response = client.delete(f"/api/v1/documents/{document_id}", headers=USER)
+    assert response.status_code == 200, response.text
+    assert response.json()["filename"] == "hostel_rules.txt"
+    assert document_id not in {doc["id"] for doc in client.get("/api/v1/documents", headers=USER).json()}
+    assert client.delete(f"/api/v1/documents/{document_id}", headers=USER).status_code == 404
+
+    citations = _ask(client, question)["citations"]
+    assert all(citation["filename"] != "hostel_rules.txt" for citation in citations)
+
+
+def test_only_admin_can_delete_shared_document(client, policy_document):
+    response = client.delete(f"/api/v1/documents/{policy_document['document_id']}", headers=USER)
+    assert response.status_code == 403

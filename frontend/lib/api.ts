@@ -75,6 +75,12 @@ export class RagApiClient {
     return this.request<DocumentSummary[]>("/api/v1/documents");
   }
 
+  deleteDocument(documentId: number) {
+    return this.request<{ deleted: boolean; document_id: number; filename: string }>(`/api/v1/documents/${documentId}`, {
+      method: "DELETE"
+    });
+  }
+
   job(jobId: string) {
     return this.request<IngestionJob>(`/api/v1/ingestion-jobs/${jobId}`);
   }
