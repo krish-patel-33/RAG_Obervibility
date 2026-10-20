@@ -57,11 +57,11 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="How the RAG system is performing: volume, speed, errors, answer quality and the kinds of failures it hits."
+        title="Overview"
+        description="Usage, response time and answer quality across all questions."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented value={source} onChange={setSource} options={[{ value: "api", label: "Live traffic" }, { value: "evaluation", label: "Evaluation runs" }]} />
+            <Segmented value={source} onChange={setSource} options={[{ value: "api", label: "Live" }, { value: "evaluation", label: "Evaluations" }]} />
             <Segmented value={days} onChange={setDays} options={RANGES.map((range) => ({ value: range.days, label: range.label }))} />
             <Button variant="outline" onClick={refresh} disabled={loading} title="Refresh">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -70,11 +70,11 @@ export default function DashboardPage() {
         }
       />
 
-      {summary.error && <div className="mb-6"><ErrorState title="Could not load analytics" message={summary.error} /></div>}
+      {summary.error && <div className="mb-6"><ErrorState title="Couldn't load the overview" message={summary.error} /></div>}
       {readiness.data && !readiness.data.ready && (
         <div className="mb-6">
           <ErrorState
-            title="Backend not ready"
+            title="Some services are unavailable"
             message={Object.entries(readiness.data.checks).filter(([, check]) => !check.ok).map(([name, check]) => `${name}: ${check.error ?? "failed"}`).join(" · ")}
           />
         </div>
@@ -171,16 +171,16 @@ export default function DashboardPage() {
       <Card className="mt-6">
         <CardHeader className="flex-row items-center justify-between">
           <div>
-            <CardTitle>Recent requests</CardTitle>
-            <CardDescription>Open any row to inspect its full trace.</CardDescription>
+            <CardTitle>Recent questions</CardTitle>
+            <CardDescription>Open one to see how it was answered.</CardDescription>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/history">Full history</Link>
+            <Link href="/history">View all</Link>
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
           {(recent.data?.items ?? []).length === 0 ? (
-            <div className="rounded-md border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">No requests yet. Ask something in RAG Chat.</div>
+            <div className="rounded-md border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">No questions yet. Try asking one on the Ask page.</div>
           ) : (
             recent.data?.items.map((item) => (
               <Link key={item.id} href={`/trace?id=${item.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.06]">

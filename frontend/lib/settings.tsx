@@ -3,19 +3,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { RagApiClient } from "@/lib/api";
 
-export type RuntimeMode = "local" | "prod";
-
 export type ConsoleSettings = {
   apiBaseUrl: string;
   apiKey: string;
-  mode: RuntimeMode;
 };
 
 const defaultSettings: ConsoleSettings = {
   apiBaseUrl: process.env.NEXT_PUBLIC_RAG_API_BASE_URL || "",
-  apiKey: process.env.NEXT_PUBLIC_RAG_API_KEY || "",
-  mode: process.env.NEXT_PUBLIC_RAG_API_BASE_URL ? "prod" : "local"
+  apiKey: process.env.NEXT_PUBLIC_RAG_API_KEY || ""
 };
+
+/** True when the deployment supplies the connection, so the UI never needs to show it. */
+export const CONNECTION_PRECONFIGURED = Boolean(process.env.NEXT_PUBLIC_RAG_API_KEY);
 
 type SettingsContextValue = {
   settings: ConsoleSettings;
@@ -30,7 +29,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem("rag-console-settings");
-    if (stored) setSettings({ ...defaultSettings, ...JSON.parse(stored) });
+    if (!stored || CONNECTION_PRECONFIGURED) return;
+    try {
+      const { apiBaseUrl, apiKey } = JSON.parse(stored) as Partial<ConsoleSettings>;
+      setSettings({ apiBaseUrl: apiBaseUrl ?? defaultSettings.apiBaseUrl, apiKey: apiKey ?? defaultSettings.apiKey });
+    } catch {
+      window.localStorage.removeItem("rag-console-settings");
+    }
   }, []);
 
   const updateSettings = (next: Partial<ConsoleSettings>) => {

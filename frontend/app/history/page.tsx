@@ -55,7 +55,7 @@ function History() {
 
   return (
     <div>
-      <PageHeader title="Request history" description="Every question the system received, with its outcome, evaluation scores and diagnosis. Open a row for the full trace." />
+      <PageHeader title="History" description="Every question asked, with its outcome and quality scores. Open one to see how it was answered." />
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
@@ -88,12 +88,12 @@ function History() {
         </CardContent>
       </Card>
 
-      {list.error && <div className="mb-4"><ErrorState title="Could not load history" message={list.error} /></div>}
+      {list.error && <div className="mb-4"><ErrorState title="Couldn't load history" message={list.error} /></div>}
 
       <Card>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full min-w-[920px] text-sm">
-            <thead className="border-b border-white/10 text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
+            <thead className="border-b border-white/10 text-left text-xs text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-medium">ID</th>
                 <th className="px-4 py-3 font-medium">Question</th>
@@ -115,7 +115,7 @@ function History() {
                 : list.data?.items.map((item) => (
                     <tr key={item.id} onClick={() => router.push(`/trace?id=${item.id}`)} className="cursor-pointer border-b border-white/5 transition-colors hover:bg-white/[0.04]">
                       <td className="px-4 py-3 tabular-nums text-zinc-400">
-                        <Link href={`/trace?id=${item.id}`} onClick={(event) => event.stopPropagation()} className="hover:text-cyan-200">{item.id}</Link>
+                        <Link href={`/trace?id=${item.id}`} onClick={(event) => event.stopPropagation()} className="hover:text-blue-300">{item.id}</Link>
                       </td>
                       <td className="max-w-md px-4 py-3">
                         <div className="truncate text-zinc-100">{item.query}</div>

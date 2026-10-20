@@ -1,101 +1,109 @@
 "use client";
 
-import { Moon, RotateCcw, Save, Server } from "lucide-react";
-import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { useConsoleSettings } from "@/lib/settings";
+import { CONNECTION_PRECONFIGURED, useConsoleSettings } from "@/lib/settings";
 import { useConsoleStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = useConsoleSettings();
   const { clearSession } = useConsoleStore();
-  const { theme, setTheme } = useTheme();
-  const [apiBaseUrl, setApiBaseUrl] = useState(settings.apiBaseUrl);
-  const [apiKey, setApiKey] = useState(settings.apiKey);
-  const [prodMode, setProdMode] = useState(settings.mode === "prod");
-
-  const save = () => {
-    updateSettings({ apiBaseUrl, apiKey, mode: prodMode ? "prod" : "local" });
-  };
+  const [cleared, setCleared] = useState(false);
 
   return (
-    <div>
-      <PageHeader title="Settings" description="Configure runtime connection details, API key auth, environment mode, and presentation." />
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+    <div className="max-w-2xl">
+      <PageHeader title="Settings" />
+      <div className="space-y-6">
+        {!CONNECTION_PRECONFIGURED && <ConnectionCard />}
+
         <Card>
           <CardHeader>
-            <CardTitle>Backend Connection</CardTitle>
-            <CardDescription>Requests are sent directly from the browser to FastAPI with the configured API key.</CardDescription>
+            <CardTitle>Browser data</CardTitle>
+            <CardDescription>Clears the upload list and recent questions stored in this browser. Documents and history on the server are not affected.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="api-url">API base URL</Label>
-              <Input id="api-url" value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} placeholder="https://your-api.railway.app" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="api-key">API key</Label>
-              <Input id="api-key" value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] p-4">
-              <div>
-                <div className="text-sm font-medium text-white">Production mode</div>
-                <div className="mt-1 text-sm text-zinc-500">Tightens user expectations around real keys and production services.</div>
-              </div>
-              <Switch checked={prodMode} onCheckedChange={setProdMode} />
-            </div>
-            <Button onClick={save}>
-              <Save className="h-4 w-4" />
-              Save settings
+          <CardContent>
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearSession();
+                setCleared(true);
+              }}
+            >
+              {cleared && <Check className="h-4 w-4" />}
+              {cleared ? "Cleared" : "Clear browser data"}
             </Button>
           </CardContent>
         </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>Dark mode is optimized for operations consoles.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex items-center gap-3">
-                  <Moon className="h-4 w-4 text-cyan-200" />
-                  <div>
-                    <div className="text-sm font-medium text-white">Dark theme</div>
-                    <div className="text-xs text-zinc-500">Current: {theme}</div>
-                  </div>
-                </div>
-                <Switch checked={theme !== "light"} onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Session Data</CardTitle>
-              <CardDescription>Clear locally cached jobs, queries, and eval cards.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" onClick={clearSession}>
-                <RotateCcw className="h-4 w-4" />
-                Clear browser session
-              </Button>
-              <div className="flex items-start gap-3 rounded-md border border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-500">
-                <Server className="mt-0.5 h-4 w-4 text-zinc-400" />
-                This does not delete backend documents, query logs, or ingestion jobs.
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
+  );
+}
+
+function ConnectionCard() {
+  const { settings, updateSettings } = useConsoleSettings();
+  const [apiBaseUrl, setApiBaseUrl] = useState(settings.apiBaseUrl);
+  const [apiKey, setApiKey] = useState(settings.apiKey);
+  const [saved, setSaved] = useState(false);
+
+  // Saved settings load from localStorage after the first render.
+  useEffect(() => {
+    setApiBaseUrl(settings.apiBaseUrl);
+    setApiKey(settings.apiKey);
+  }, [settings]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Access</CardTitle>
+        <CardDescription>Enter the access key you were given to use this workspace.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updateSettings({ apiBaseUrl: apiBaseUrl.trim(), apiKey: apiKey.trim() });
+            setSaved(true);
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="api-key">Access key</Label>
+            <Input
+              id="api-key"
+              type="password"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(event) => {
+                setApiKey(event.target.value);
+                setSaved(false);
+              }}
+            />
+          </div>
+          <details className="group text-sm">
+            <summary className="cursor-pointer select-none text-zinc-400 hover:text-zinc-200">Advanced</summary>
+            <div className="mt-3 space-y-2">
+              <Label htmlFor="api-url">Server address</Label>
+              <Input
+                id="api-url"
+                value={apiBaseUrl}
+                onChange={(event) => {
+                  setApiBaseUrl(event.target.value);
+                  setSaved(false);
+                }}
+                placeholder="Same as this site"
+              />
+            </div>
+          </details>
+          <Button type="submit">
+            {saved && <Check className="h-4 w-4" />}
+            {saved ? "Saved" : "Save"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

@@ -2,98 +2,105 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Database, FileUp, FlaskConical, History, MessageSquare, Moon, Settings, ShieldCheck, Workflow } from "lucide-react";
-import { motion } from "framer-motion";
+import { BarChart3, FileText, FlaskConical, History, MessageSquare, Settings, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { useConsoleSettings } from "@/lib/settings";
 
-const nav = [
-  { href: "/", label: "Dashboard", icon: Activity },
-  { href: "/upload", label: "Documents", icon: FileUp },
-  { href: "/chat", label: "RAG Chat", icon: MessageSquare },
-  { href: "/history", label: "History", icon: History },
-  { href: "/trace", label: "Trace inspector", icon: Workflow },
-  { href: "/evaluations", label: "Evaluations", icon: FlaskConical },
-  { href: "/settings", label: "Settings", icon: Settings }
+const sections = [
+  {
+    title: "Workspace",
+    items: [
+      { href: "/chat", label: "Ask", icon: MessageSquare },
+      { href: "/upload", label: "Documents", icon: FileText },
+      { href: "/history", label: "History", icon: History }
+    ]
+  },
+  {
+    title: "Analysis",
+    items: [
+      { href: "/", label: "Overview", icon: BarChart3 },
+      { href: "/trace", label: "Traces", icon: Workflow },
+      { href: "/evaluations", label: "Evaluations", icon: FlaskConical }
+    ]
+  }
 ];
+
+const allItems = [...sections.flatMap((section) => section.items), { href: "/settings", label: "Settings", icon: Settings }];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { settings } = useConsoleSettings();
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(103,232,249,0.12),transparent_28%),radial-gradient(circle_at_80%_10%,rgba(34,197,94,0.08),transparent_24%)]" />
-      <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-white/10 bg-zinc-950/80 px-4 py-5 backdrop-blur-xl lg:block">
-        <Link href="/" className="flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10">
-            <Database className="h-5 w-5 text-cyan-200" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold tracking-wide text-white">RAGWatch</div>
-            <div className="text-xs text-zinc-500">RAG observability &amp; evaluation</div>
-          </div>
+      <aside className="fixed left-0 top-0 hidden h-screen w-60 flex-col border-r border-white/[0.06] bg-zinc-950 px-3 py-5 lg:flex">
+        <Link href="/" className="flex items-center gap-2.5 px-3">
+          <Logo />
+          <span className="text-[15px] font-semibold tracking-tight text-white">RAGWatch</span>
         </Link>
 
-        <nav className="mt-8 space-y-1">
-          {nav.map((item) => {
-            const active = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "relative flex h-10 items-center gap-3 rounded-md px-3 text-sm text-zinc-400 transition-colors hover:bg-white/6 hover:text-white",
-                  active && "bg-white/8 text-white"
-                )}
-              >
-                {active && <motion.div layoutId="active-nav" className="absolute inset-y-1 left-0 w-1 rounded-full bg-cyan-300" />}
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="mt-8 flex-1 space-y-6">
+          {sections.map((section) => (
+            <div key={section.title}>
+              <div className="px-3 pb-2 text-xs font-medium text-zinc-500">{section.title}</div>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink key={item.href} {...item} active={pathname === item.href} />
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        <div className="absolute bottom-5 left-4 right-4 rounded-lg border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between">
-            <Badge className="capitalize">{settings.mode}</Badge>
-            <Moon className="h-4 w-4 text-zinc-500" />
-          </div>
-          <div className="mt-3 truncate text-xs text-zinc-500">{settings.apiBaseUrl}</div>
-        </div>
+        <NavLink href="/settings" label="Settings" icon={Settings} active={pathname === "/settings"} />
       </aside>
 
-      <main className="lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-white/10 bg-zinc-950/70 px-4 backdrop-blur-xl lg:px-8">
-          <div className="flex items-center gap-2 lg:hidden">
-            <ShieldCheck className="h-5 w-5 text-cyan-200" />
+      <main className="lg:pl-60">
+        <header className="flex h-14 items-center border-b border-white/[0.06] px-4 lg:hidden">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Logo />
             <span className="text-sm font-semibold">RAGWatch</span>
-          </div>
-          <div className="hidden text-sm text-zinc-500 lg:block">Tracing, evaluation and failure diagnosis for a RAG pipeline</div>
-          <div className="flex items-center gap-2">
-            <Badge className="border-cyan-300/20 bg-cyan-300/10 text-cyan-100">API connected by key</Badge>
-          </div>
+          </Link>
         </header>
-        <nav className="flex gap-1 overflow-x-auto border-b border-white/10 px-4 py-2 lg:hidden">
-          {nav.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn("flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs text-zinc-400", pathname === item.href && "bg-white/8 text-white")}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex gap-1 overflow-x-auto border-b border-white/[0.06] px-4 py-2 lg:hidden">
+          {allItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "shrink-0 rounded-md px-3 py-1.5 text-xs text-zinc-400",
+                pathname === item.href && "bg-white/[0.06] text-white"
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
-        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">{children}</div>
+        <div className="mx-auto max-w-6xl px-4 py-8 lg:px-10">{children}</div>
       </main>
     </div>
+  );
+}
+
+function NavLink({ href, label, icon: Icon, active }: { href: string; label: string; icon: typeof Settings; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex h-8 items-center gap-2.5 rounded-md px-3 text-sm text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-zinc-100",
+        active && "bg-white/[0.06] text-white"
+      )}
+    >
+      <Icon className="h-4 w-4" strokeWidth={1.75} />
+      {label}
+    </Link>
+  );
+}
+
+function Logo() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden="true">
+      <rect x="2" y="3" width="10" height="2" rx="1" fill="currentColor" className="text-zinc-500" />
+      <rect x="2" y="9" width="16" height="2" rx="1" fill="currentColor" className="text-white" />
+      <rect x="2" y="15" width="7" height="2" rx="1" fill="currentColor" className="text-zinc-500" />
+    </svg>
   );
 }

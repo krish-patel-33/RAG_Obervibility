@@ -1,26 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { Clock3, FileText, Loader2, Trash2 } from "lucide-react";
+import { FileText, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { UploadDropzone } from "@/components/upload-dropzone";
-import { useConsoleStore } from "@/lib/store";
 import { useConsoleSettings } from "@/lib/settings";
 import { useApi } from "@/lib/use-api";
-import { formatDate, formatNumber } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { StatusChip } from "@/components/status-chip";
+import { formatDate } from "@/lib/utils";
 import { ErrorState } from "@/components/error-state";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { DocumentSummary } from "@/lib/types";
 
 export default function UploadPage() {
-  const { jobs } = useConsoleStore();
   const { client } = useConsoleSettings();
   const documents = useApi((client) => client.documents(), []);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const items = documents.data ?? [];
 
   async function deleteDocument(doc: DocumentSummary) {
     if (!window.confirm(`Delete "${doc.filename}"? It will no longer be used to answer questions.`)) return;
@@ -37,97 +34,60 @@ export default function UploadPage() {
   }
 
   return (
-    <div>
-      <PageHeader title="Documents" description="Upload documents and see everything indexed for retrieval." />
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <div className="space-y-6">
-          <UploadDropzone onIndexed={documents.reload} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Indexed documents</CardTitle>
-              <CardDescription>Documents your API key can retrieve from. Admin uploads are shared with every key.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {documents.error && <ErrorState title="Could not load documents" message={documents.error} />}
-              {deleteError && <ErrorState title="Could not delete document" message={deleteError} />}
-              {(documents.data ?? []).length === 0 && !documents.loading && (
-                <div className="rounded-md border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">Nothing indexed yet.</div>
-              )}
-              {documents.data?.map((doc) => (
-                <div key={doc.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] p-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-white">{doc.filename}</div>
-                      <div className="text-xs text-zinc-500">
-                        #{doc.id} · {formatNumber(doc.chunk_count)} chunks · {doc.file_size_bytes ? `${Math.max(1, Math.round(doc.file_size_bytes / 1024))} KB` : "size n/a"} · {formatDate(doc.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="capitalize">{doc.visibility}</Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
-                      disabled={deletingId !== null}
-                      onClick={() => deleteDocument(doc)}
-                      aria-label={`Delete ${doc.filename}`}
-                    >
-                      {deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+    <div className="max-w-4xl">
+      <PageHeader title="Documents" description="Questions are answered using the documents listed here." />
+      <UploadDropzone onIndexed={documents.reload} />
+
+      <div className="mt-10">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-sm font-semibold text-zinc-100">Your documents</h2>
+          {items.length > 0 && <span className="text-xs text-zinc-500">{items.length} total</span>}
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload jobs</CardTitle>
-            <CardDescription>Queued, processing, completed and failed jobs from this browser.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {jobs.length === 0 ? (
-              <div className="flex min-h-64 flex-col items-center justify-center rounded-md border border-dashed border-white/10 text-center text-sm text-zinc-500">
-                <Clock3 className="mb-3 h-5 w-5" />
-                Upload a document to start tracking ingestion.
-              </div>
-            ) : (
-              jobs.map((job) => (
-                <div key={job.job_id} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-                        <span className="truncate text-sm font-medium text-white">{job.filename}</span>
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-500">Job {job.job_id}</div>
-                    </div>
-                    <StatusChip status={job.status} />
-                  </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                    <Datum label="Chunks" value={String(job.chunk_count)} />
-                    <Datum label="Document" value={String(job.document_id ?? "n/a")} />
-                    <Datum label="Failed" value={job.failed_at ? "yes" : "no"} />
-                  </div>
-                  {job.error_message && <div className="mt-3 rounded-md border border-red-400/20 bg-red-950/20 p-3 text-sm text-red-100">{job.error_message}</div>}
+
+        {documents.error && <div className="mb-3"><ErrorState title="Couldn't load documents" message={documents.error} /></div>}
+        {deleteError && <div className="mb-3"><ErrorState title="Couldn't delete document" message={deleteError} /></div>}
+
+        <div className="divide-y divide-white/[0.06] rounded-lg border border-white/[0.08]">
+          {documents.loading && !documents.data &&
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="p-4"><Skeleton className="h-5 w-1/2" /></div>
+            ))}
+          {documents.data && items.length === 0 && (
+            <div className="p-8 text-center text-sm text-zinc-500">No documents yet. Upload one above to get started.</div>
+          )}
+          {items.map((doc) => (
+            <div key={doc.id} className="group flex items-center gap-3 px-4 py-3">
+              <FileText className="h-4 w-4 shrink-0 text-zinc-500" strokeWidth={1.75} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm text-zinc-100">{doc.filename}</div>
+                <div className="mt-0.5 text-xs text-zinc-500">
+                  {formatSize(doc.file_size_bytes)}
+                  {formatSize(doc.file_size_bytes) && " · "}
+                  Added {formatDate(doc.created_at)}
+                  {doc.visibility === "public" && " · Shared with everyone"}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-zinc-500 hover:bg-red-500/10 hover:text-red-300"
+                disabled={deletingId !== null}
+                onClick={() => deleteDocument(doc)}
+                aria-label={`Delete ${doc.filename}`}
+                title="Delete"
+              >
+                {deletingId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function Datum({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-white/10 bg-zinc-950 p-2">
-      <div className="text-zinc-500">{label}</div>
-      <div className="mt-1 truncate font-medium text-zinc-200">{value}</div>
-    </div>
-  );
+function formatSize(bytes: number | null) {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

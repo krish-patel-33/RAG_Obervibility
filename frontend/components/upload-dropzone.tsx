@@ -1,16 +1,12 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { CheckCircle2, FileUp, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { RagApiError } from "@/lib/api";
 import type { StoredJob } from "@/lib/types";
 import { useConsoleSettings } from "@/lib/settings";
 import { useConsoleStore } from "@/lib/store";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusChip } from "@/components/status-chip";
 
 const SUPPORTED = [".pdf", ".txt", ".md", ".markdown"];
 
@@ -41,7 +37,7 @@ export function UploadDropzone({ onIndexed }: { onIndexed?: () => void }) {
         if (job.status === "completed" || job.status === "failed") return job;
         await new Promise((resolve) => window.setTimeout(resolve, 1000));
       }
-      throw new Error("Ingestion job timed out while polling.");
+      throw new Error("Processing is taking longer than expected. Check back in a moment.");
     },
     [client, upsertJob]
   );
@@ -114,7 +110,7 @@ export function UploadDropzone({ onIndexed }: { onIndexed?: () => void }) {
           event.target.value = "";
         }}
       />
-      <motion.div
+      <div
         onDragOver={(event) => {
           event.preventDefault();
           setDragging(true);
@@ -125,50 +121,49 @@ export function UploadDropzone({ onIndexed }: { onIndexed?: () => void }) {
           setDragging(false);
           if (!busy) uploadMany(event.dataTransfer.files);
         }}
-        className="rounded-lg border border-dashed border-white/15 bg-zinc-950/70 p-8 text-center transition-colors data-[dragging=true]:border-cyan-300/60 data-[dragging=true]:bg-cyan-300/5"
+        className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/15 px-6 py-10 text-center transition-colors data-[dragging=true]:border-blue-400/60 data-[dragging=true]:bg-blue-500/5"
         data-dragging={dragging}
       >
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10">
-          <FileUp className="h-6 w-6 text-cyan-200" />
-        </div>
-        <h2 className="mt-5 text-lg font-semibold text-white">Drop documents to index</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">
-          Select or drop one or many PDF, plain-text and Markdown files. Each is parsed, chunked, embedded and stored for retrieval.
+        <Upload className="h-5 w-5 text-zinc-500" strokeWidth={1.75} />
+        <p className="mt-3 text-sm text-zinc-300">
+          Drag files here, or{" "}
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="font-medium text-white underline-offset-4 hover:underline disabled:opacity-50">
+            browse
+          </button>
         </p>
-        <Button className="mt-6" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {busy ? "Uploading…" : "Select files"}
-        </Button>
-      </motion.div>
+        <p className="mt-1 text-xs text-zinc-500">PDF, TXT or Markdown{busy ? " · Uploading…" : ""}</p>
+      </div>
 
       {queue.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-sm">
-              <span>
-                {done} of {queue.length} processed{failed ? ` · ${failed} failed` : ""}
-              </span>
-            </CardTitle>
-            <Progress value={(done / queue.length) * 100} />
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="rounded-lg border border-white/[0.08]">
+          <div className="border-b border-white/[0.06] px-4 py-3">
+            <div className="flex items-center justify-between text-xs text-zinc-400">
+              <span>{done} of {queue.length} processed{failed ? ` · ${failed} failed` : ""}</span>
+            </div>
+            <Progress value={(done / queue.length) * 100} className="mt-2" />
+          </div>
+          <div className="divide-y divide-white/[0.06]">
             {queue.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] p-3">
+              <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div className="min-w-0">
-                  <div className="truncate text-sm text-white">{item.name}</div>
-                  {item.error && <div className="mt-1 text-xs text-red-200">{item.error}</div>}
-                  {item.status === "completed" && <div className="mt-1 text-xs text-zinc-500">{item.chunks ?? 0} chunks indexed</div>}
+                  <div className="truncate text-sm text-zinc-200">{item.name}</div>
+                  {item.error && <div className="mt-0.5 text-xs text-red-300">{item.error}</div>}
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {(item.status === "uploading" || item.status === "processing") && <Loader2 className="h-4 w-4 animate-spin text-cyan-200" />}
-                  {item.status === "completed" && <CheckCircle2 className="h-4 w-4 text-emerald-300" />}
-                  {item.status === "failed" && <XCircle className="h-4 w-4 text-red-300" />}
-                  <StatusChip status={item.status === "waiting" ? "queued" : item.status === "uploading" ? "processing" : item.status} />
+                <div className="flex shrink-0 items-center gap-2 text-xs text-zinc-500">
+                  {item.status === "waiting" && "Waiting"}
+                  {(item.status === "uploading" || item.status === "processing") && (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {item.status === "uploading" ? "Uploading" : "Processing"}
+                    </>
+                  )}
+                  {item.status === "completed" && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                  {item.status === "failed" && <XCircle className="h-4 w-4 text-red-400" />}
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );

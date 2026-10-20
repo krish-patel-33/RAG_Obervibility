@@ -43,7 +43,7 @@ function TraceInspector() {
 
   return (
     <div>
-      <PageHeader title="Trace inspector" description="Everything that happened while answering one question: stage timings, retrieved evidence, the exact LLM context, evaluation scores and the diagnosis." />
+      <PageHeader title="Traces" description="A step-by-step record of how a single question was answered." />
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card>
@@ -70,7 +70,7 @@ function TraceInspector() {
                 <Link
                   key={item.id}
                   href={`/trace?id=${item.id}`}
-                  className={`block rounded-md border p-3 transition-colors hover:bg-white/[0.06] ${item.id === id ? "border-cyan-300/40 bg-cyan-300/5" : "border-white/10 bg-white/[0.03]"}`}
+                  className={`block rounded-md border p-3 transition-colors hover:bg-white/[0.06] ${item.id === id ? "border-blue-400/40 bg-blue-400/5" : "border-white/10 bg-white/[0.03]"}`}
                 >
                   <div className="truncate text-sm text-white">{item.query}</div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
