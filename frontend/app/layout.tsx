@@ -4,8 +4,8 @@ import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata: Metadata = {
-  title: "Mini RAG Console",
-  description: "Production RAG operations console"
+  title: "RAGWatch",
+  description: "Observability, evaluation and failure diagnosis for a RAG system"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

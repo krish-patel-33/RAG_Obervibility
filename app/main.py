@@ -6,6 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+from app.api.evaluation_routes import router as evaluation_router
+from app.api.observability_routes import router as observability_router
 from app.api.routes import router
 from app.core.config import settings
 from app.core.errors import AppError, app_error_handler, unhandled_error_handler
@@ -54,6 +56,8 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+app.include_router(observability_router, prefix="/api/v1")
+app.include_router(evaluation_router, prefix="/api/v1")
 
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_error_handler)

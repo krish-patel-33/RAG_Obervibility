@@ -1,10 +1,8 @@
-import re
 from abc import ABC, abstractmethod
 
 from app.core.config import settings
 from app.services.citation_formatter import RetrievedChunk
-
-TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+from app.utils.text import content_tokens
 
 
 class Reranker(ABC):
@@ -20,7 +18,7 @@ class NoOpReranker(Reranker):
 
 class LocalReranker(Reranker):
     def rerank(self, query: str, results: list[RetrievedChunk], top_k: int) -> list[RetrievedChunk]:
-        query_terms = _tokens(query)
+        query_terms = content_tokens(query)
         if not query_terms:
             return results[:top_k]
 
@@ -29,7 +27,7 @@ class LocalReranker(Reranker):
 
         scored: list[RetrievedChunk] = []
         for result in results:
-            text_terms = _tokens(result.chunk.text)
+            text_terms = content_tokens(result.chunk.text)
             lexical_score = len(query_terms & text_terms) / max(1, len(query_terms))
             phrase_bonus = 0.05 if query.lower() in result.chunk.text.lower() else 0.0
             rerank_score = min(1.0, (semantic_weight * result.score) + (lexical_weight * lexical_score) + phrase_bonus)
@@ -43,7 +41,4 @@ def build_reranker() -> Reranker:
         return NoOpReranker()
     return LocalReranker()
 
-
-def _tokens(text: str) -> set[str]:
-    return {token.lower() for token in TOKEN_RE.findall(text)}
 

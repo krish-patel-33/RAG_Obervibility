@@ -7,12 +7,14 @@ from app.models.chunk import Chunk
 from app.models.document import Document, DocumentVersion
 from app.services.chunker import CHUNKER_VERSION, Chunker
 from app.services.embedding_service import EmbeddingService
-from app.services.pdf_parser import PARSER_VERSION, PDFParser
+from app.services.pdf_parser import PDFParser, TextParser
 from app.services.storage import StorageBackend, build_storage_backend
 from app.utils.hash import sha256_bytes
 
 
 PDF_MAGIC = b"%PDF-"
+TEXT_EXTENSIONS = (".txt", ".md", ".markdown")
+SUPPORTED_EXTENSIONS = (".pdf", *TEXT_EXTENSIONS)
 
 
 class IngestionService:
@@ -22,8 +24,10 @@ class IngestionService:
         chunker: Chunker | None = None,
         embedding_service: EmbeddingService | None = None,
         storage_backend: StorageBackend | None = None,
+        text_parser: TextParser | None = None,
     ):
         self.parser = parser or PDFParser()
+        self.text_parser = text_parser or TextParser()
         self.chunker = chunker or Chunker()
         self.embedding_service = embedding_service or EmbeddingService()
         self.storage_backend = storage_backend or build_storage_backend()
@@ -52,8 +56,11 @@ class IngestionService:
         allowed_group_ids: list[str] | None = None,
         raw_file_uri: str | None = None,
     ) -> tuple[Document, DocumentVersion, int]:
+        """Ingest a PDF, plain-text or Markdown document (the name predates text support)."""
         try:
-            self._validate_pdf_upload(filename=filename, content_type=content_type, content=content)
+            is_text = self._validate_upload(filename=filename, content_type=content_type, content=content)
+            parser = self.text_parser if is_text else self.parser
+            default_content_type = "text/plain" if is_text else "application/pdf"
 
             content_hash = sha256_bytes(content)
             existing = db.execute(
@@ -66,17 +73,19 @@ class IngestionService:
                 chunk_count = db.scalar(select(func.count(Chunk.id)).where(Chunk.document_version_id == version.id)) or 0
                 return existing, version, int(chunk_count)
 
-            pages = self.parser.parse(content)
-            parsed_text = "\n\n".join(f"Page {page.page_number}\n{page.text}" for page in pages)
+            pages = parser.parse(content)
+            parsed_text = "\n\n".join(
+                f"Page {page.page_number}\n{page.text}" if page.page_number is not None else page.text for page in pages
+            )
             text_chunks = self.chunker.chunk_pages(pages)
             if not text_chunks:
-                raise ValidationAppError("No chunks were produced from the PDF")
+                raise ValidationAppError("No chunks were produced from the document")
 
             embeddings = self.embedding_service.embed_texts([chunk.text for chunk in text_chunks])
             raw_file_uri = raw_file_uri or self.storage_backend.put_bytes(
                 key=f"raw/{content_hash}/{filename}",
                 content=content,
-                content_type=content_type or "application/pdf",
+                content_type=content_type or default_content_type,
             )
             parsed_text_uri = self.storage_backend.put_bytes(
                 key=f"parsed/{content_hash}/parsed.txt",
@@ -86,7 +95,7 @@ class IngestionService:
 
             document = Document(
                 filename=filename,
-                content_type=content_type or "application/pdf",
+                content_type=content_type or default_content_type,
                 content_hash=content_hash,
                 raw_file_uri=raw_file_uri,
                 storage_backend=self.storage_backend.name,
@@ -102,7 +111,7 @@ class IngestionService:
             version = DocumentVersion(
                 document_id=document.id,
                 version=1,
-                parser_version=PARSER_VERSION,
+                parser_version=parser.version,
                 chunker_version=CHUNKER_VERSION,
                 embedding_model=settings.active_embedding_model,
                 embedding_dimension=settings.embedding_dimension,
@@ -136,14 +145,21 @@ class IngestionService:
             db.rollback()
             raise
 
-    def _validate_pdf_upload(self, filename: str, content_type: str, content: bytes) -> None:
+    def _validate_upload(self, filename: str, content_type: str, content: bytes) -> bool:
+        """Validate an upload and return True for text documents, False for PDFs."""
         if not content:
-            raise ValidationAppError("Uploaded PDF is empty")
+            raise ValidationAppError("Uploaded document is empty")
         if len(content) > settings.max_upload_bytes:
             raise ValidationAppError(f"File exceeds max upload size of {settings.max_upload_mb} MB")
-        if not filename.lower().endswith(".pdf"):
-            raise ValidationAppError("Only .pdf files are supported in v1")
+        name = filename.lower()
+        if not name.endswith(SUPPORTED_EXTENSIONS):
+            raise ValidationAppError("Only .pdf, .txt and .md files are supported")
+        if name.endswith(TEXT_EXTENSIONS):
+            if content_type and content_type.split(";")[0].strip() not in settings.allowed_text_content_types:
+                raise ValidationAppError("Uploaded text file must have a text/plain or text/markdown content type")
+            return True
         if content_type and content_type not in settings.allowed_pdf_content_types:
             raise ValidationAppError("Uploaded file content type must be application/pdf")
         if not content.startswith(PDF_MAGIC):
             raise ValidationAppError("Uploaded file does not look like a PDF")
+        return False

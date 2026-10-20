@@ -1,12 +1,25 @@
 import type {
+  AnalyticsSummary,
   ApiErrorPayload,
+  BenchmarkReport,
+  Diagnosis,
+  DocumentSummary,
+  EvalCaseInput,
+  EvalDataset,
+  EvalRun,
+  EvalRunCreate,
+  EvalRunDetail,
   HealthResponse,
   IngestResponse,
   IngestionJob,
+  QueryListParams,
+  QueryListResponse,
   QueryRequest,
   QueryResponse,
   QueryTrace,
-  ReadinessResponse
+  ReadinessResponse,
+  RunComparison,
+  TimeseriesPoint
 } from "@/lib/types";
 
 export class RagApiError extends Error {
@@ -25,6 +38,8 @@ export type RagClientConfig = {
   baseUrl: string;
   apiKey: string;
 };
+
+type Params = Record<string, string | number | boolean | null | undefined>;
 
 export class RagApiClient {
   private baseUrl: string;
@@ -56,22 +71,80 @@ export class RagApiClient {
     return response;
   }
 
+  documents() {
+    return this.request<DocumentSummary[]>("/api/v1/documents");
+  }
+
   job(jobId: string) {
     return this.request<IngestionJob>(`/api/v1/ingestion-jobs/${jobId}`);
   }
 
   query(payload: QueryRequest) {
-    return this.request<QueryResponse>("/api/v1/query", {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
+    return this.post<QueryResponse>("/api/v1/query", payload);
   }
 
   trace(queryLogId: number) {
     return this.request<QueryTrace>(`/api/v1/query/${queryLogId}/trace`);
+  }
+
+  explain(queryLogId: number) {
+    return this.post<Diagnosis>(`/api/v1/query/${queryLogId}/explain`);
+  }
+
+  reevaluate(queryLogId: number) {
+    return this.post<QueryTrace>(`/api/v1/query/${queryLogId}/evaluate`);
+  }
+
+  queries(params: QueryListParams = {}) {
+    return this.request<QueryListResponse>(`/api/v1/queries${toQuery(params)}`);
+  }
+
+  summary(params: { source?: string; days?: number } = {}) {
+    return this.request<AnalyticsSummary>(`/api/v1/analytics/summary${toQuery(params)}`);
+  }
+
+  timeseries(params: { source?: string; days?: number; bucket?: "day" | "hour" } = {}) {
+    return this.request<{ bucket: string; points: TimeseriesPoint[] }>(`/api/v1/analytics/timeseries${toQuery(params)}`);
+  }
+
+  datasets() {
+    return this.request<EvalDataset[]>("/api/v1/evaluation/datasets");
+  }
+
+  dataset(datasetId: number) {
+    return this.request<EvalDataset>(`/api/v1/evaluation/datasets/${datasetId}`);
+  }
+
+  createDataset(payload: { name: string; description?: string; cases: EvalCaseInput[] }) {
+    return this.post<EvalDataset>("/api/v1/evaluation/datasets", payload);
+  }
+
+  runs(datasetId?: number) {
+    return this.request<EvalRun[]>(`/api/v1/evaluation/runs${toQuery({ dataset_id: datasetId })}`);
+  }
+
+  run(runId: number) {
+    return this.request<EvalRunDetail>(`/api/v1/evaluation/runs/${runId}`);
+  }
+
+  createRun(payload: EvalRunCreate) {
+    return this.post<EvalRun>("/api/v1/evaluation/runs", payload);
+  }
+
+  compare(runIds: number[]) {
+    return this.request<RunComparison>(`/api/v1/evaluation/compare${toQuery({ run_ids: runIds.join(",") })}`);
+  }
+
+  benchmark() {
+    return this.request<BenchmarkReport>("/api/v1/evaluation/diagnosis-benchmark");
+  }
+
+  private post<T>(path: string, body?: unknown) {
+    return this.request<T>(path, {
+      method: "POST",
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" }
+    });
   }
 
   private async request<T>(path: string, init: RequestInit & { auth?: boolean } = {}) {
@@ -97,7 +170,15 @@ export class RagApiClient {
     }
 
     const text = await response.text();
-    const payload = text ? (JSON.parse(text) as T | ApiErrorPayload) : null;
+    let payload: T | ApiErrorPayload | null = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text) as T | ApiErrorPayload;
+      } catch {
+        // Proxies and crashed servers can answer with HTML or plain text.
+        throw new RagApiError(`Unexpected non-JSON response (HTTP ${response.status})`, response.status, null);
+      }
+    }
     if (!response.ok) {
       const apiPayload = payload as ApiErrorPayload | null;
       const message = apiPayload?.error?.message || `Request failed with HTTP ${response.status}`;
@@ -105,4 +186,13 @@ export class RagApiClient {
     }
     return payload as T;
   }
+}
+
+function toQuery(params: Params) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
 }

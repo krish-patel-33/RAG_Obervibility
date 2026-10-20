@@ -30,5 +30,9 @@ class DocumentSummary(BaseModel):
     content_type: str
     content_hash: str
     created_at: datetime
+    visibility: str = "private"
+    owner_id: str | None = None
+    file_size_bytes: int | None = None
+    chunk_count: int = 0
 
     model_config = {"from_attributes": True}
