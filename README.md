@@ -18,18 +18,18 @@ An observability, evaluation and failure-diagnosis platform for retrieval-augmen
 
 ```mermaid
 flowchart LR
-    U[Console / API client] --> AUTH[API key auth + ACL]
-    AUTH --> INGEST[Parse PDF/TXT/MD → chunk → embed → store]
-    AUTH --> PIPE[Query pipeline]
-    subgraph PIPE[Query pipeline — every stage timed]
-      E[Query embedding] --> R[Hybrid retrieval + relevance gate] --> RR[Rerank] --> ACL[ACL filter] --> CTX[Context construction] --> LLM[LLM generation] --> CV[Citation validation]
+    U["Console / API client"] --> AUTH["API key auth + ACL"]
+    AUTH --> INGEST["Parse PDF/TXT/MD → chunk → embed → store"]
+    subgraph PIPE["Query pipeline — every stage timed"]
+      E["Query embedding"] --> R["Hybrid retrieval + relevance gate"] --> RR["Rerank"] --> ACL["ACL filter"] --> CTX["Context construction"] --> LLM["LLM generation"] --> CV["Citation validation"]
     end
-    PIPE --> TRACE[(Trace: query_logs)]
-    TRACE -. background .-> EVAL[Evaluation: answer quality, system metrics]
-    EVAL --> DIAG[Rule-based diagnosis]
-    DS[(Eval datasets: ground truth)] --> RUN[Evaluation runs] --> PIPE
-    RUN --> RQ[Recall@K / Precision@K / MRR] --> DIAG
-    DIAG --> DASH[Dashboard, history, trace inspector]
+    AUTH --> PIPE
+    PIPE --> TRACE[("Trace: query_logs")]
+    TRACE -. background .-> EVAL["Evaluation: answer quality, system metrics"]
+    EVAL --> DIAG["Rule-based diagnosis"]
+    DS[("Eval datasets: ground truth")] --> RUN["Evaluation runs"] --> PIPE
+    RUN --> RQ["Recall@K / Precision@K / MRR"] --> DIAG
+    DIAG --> DASH["Dashboard, history, trace inspector"]
 ```
 
 Live queries and evaluation runs share one code path (`app/services/query_pipeline.py`), so evaluation measures exactly what users experience.
