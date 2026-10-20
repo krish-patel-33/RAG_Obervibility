@@ -1,4 +1,4 @@
-# RAGWatch (TraceRAG)
+# RAGWatch 
 
 An observability, evaluation and failure-diagnosis platform for retrieval-augmented generation (RAG), built around a working citation-gated RAG application. Upload documents, ask grounded questions, and see for every request how long each stage took, what was retrieved, what the LLM was given, how good the answer was, and — when something went wrong — which stage failed and why.
 
