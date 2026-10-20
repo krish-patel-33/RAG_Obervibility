@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     openai_chat_model: str = "gpt-4-turbo"
     gemini_api_key: SecretStr = Field(default="", repr=False)
     gemini_embedding_model: str = "gemini-embedding-001"
-    gemini_chat_model: str = "gemini-2.5-flash"
+    gemini_chat_model: str = "gemini-3-flash-preview"
     embedding_dimension: int = 1536
     estimated_input_cost_per_1m_tokens: float = 0.0
     estimated_output_cost_per_1m_tokens: float = 0.0
@@ -84,6 +84,11 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 120
     retrieval_top_k: int = 6
     min_retrieval_score: float = 0.20
+    # Minimum raw cosine similarity for a vector hit to count as relevant.
+    # Unset -> provider default (see ``vector_similarity_threshold``).
+    min_vector_similarity: float | None = None
+    # Minimum fraction of (non-stopword) query terms a chunk must contain.
+    min_keyword_score: float = 0.50
     retrieval_mode: Literal["hybrid", "vector"] = "hybrid"
     vector_search_weight: float = 0.65
     keyword_search_weight: float = 0.35
@@ -96,6 +101,7 @@ class Settings(BaseSettings):
     min_citation_score: float = 0.20
 
     # Performance
+    ingestion_mode: str = ""
     request_timeout_seconds: int = 60
     upload_read_chunk_bytes: int = 1024 * 1024
     max_context_chars: int = 24000
@@ -154,6 +160,16 @@ class Settings(BaseSettings):
         return _secret_to_str(self.gemini_api_key)
 
     @property
+    def vector_similarity_threshold(self) -> float:
+        if self.min_vector_similarity is not None:
+            return self.min_vector_similarity
+        # Gemini embeddings have a high similarity baseline: unrelated text
+        # still scores ~0.45-0.50 against RETRIEVAL_QUERY embeddings.
+        if self.ai_provider == "gemini":
+            return 0.55
+        return self.min_retrieval_score
+
+    @property
     def active_embedding_model(self) -> str:
         return self.gemini_embedding_model if self.ai_provider == "gemini" else self.openai_embedding_model
 
@@ -205,10 +221,12 @@ class Settings(BaseSettings):
         "keyword_search_weight",
         "local_reranker_lexical_weight",
         "min_citation_score",
+        "min_vector_similarity",
+        "min_keyword_score",
     )
     @classmethod
-    def score_must_be_probability(cls, value: float) -> float:
-        if value < 0 or value > 1:
+    def score_must_be_probability(cls, value: float | None) -> float | None:
+        if value is not None and (value < 0 or value > 1):
             raise ValueError("score settings must be between 0 and 1")
         return value
 

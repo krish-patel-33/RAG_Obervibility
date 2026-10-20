@@ -32,7 +32,7 @@ class EmbeddingService:
         return self._client
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(settings.openai_max_retries), reraise=True)
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    def embed_texts(self, texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
         if not texts:
             return []
         if self._client is None and _use_local_ai():
@@ -43,7 +43,7 @@ class EmbeddingService:
                     model=settings.gemini_embedding_model,
                     contents=texts,
                     config={
-                        "task_type": "RETRIEVAL_DOCUMENT",
+                        "task_type": task_type,
                         "output_dimensionality": settings.embedding_dimension,
                     },
                 )
@@ -59,20 +59,15 @@ class EmbeddingService:
                 )
                 vectors = [item.embedding for item in response.data]
         except Exception as exc:
-            # Graceful degradation: when the embedding provider is unavailable
-            # (e.g. network errors, unsupported endpoints, rate limits), fall
-            # back to deterministic local embeddings so ingestion and search
-            # keep working. The fallback is also used automatically in local
-            # and demo modes when no API key is configured.
+            # Do not fall back to local hash embeddings here: they live in a
+            # different vector space than the provider's, so mixing them makes
+            # similarity scores meaningless. Fail loudly instead.
+            reason = f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
             logger.warning(
                 "embedding_provider_failed",
-                extra={
-                    "event": "embedding_provider_failed",
-                    "reason": str(exc)[:200],
-                    "fallback": "local",
-                },
+                extra={"event": "embedding_provider_failed", "reason": reason},
             )
-            return [_local_embedding(text) for text in texts]
+            raise ExternalServiceError(f"Embedding provider request failed: {reason}") from exc
 
         if len(vectors) != len(texts):
             raise ExternalServiceError("Embedding provider returned an unexpected number of vectors")
@@ -88,7 +83,7 @@ class EmbeddingService:
         )
 
     def embed_query(self, query: str) -> list[float]:
-        return self.embed_texts([query])[0]
+        return self.embed_texts([query], task_type="RETRIEVAL_QUERY")[0]
 
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")

@@ -4,7 +4,11 @@ import re
 from app.models.chunk import Chunk
 from app.utils.text import compact_snippet
 
-CITATION_RE = re.compile(r"\[(S\d+)\]")
+# Matches "[S1]" as well as grouped citations such as "[S1, S3]" or "[S1; S2]".
+CITATION_RE = re.compile(r"\[(S\d+(?:\s*[,;]\s*S\d+)*)\]")
+LABEL_RE = re.compile(r"S\d+")
+BULLET_PREFIX_RE = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)])\s+")
+MIN_CLAIM_WORDS = 4
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,7 @@ def build_source_context(results: list[RetrievedChunk], max_chars: int | None = 
 
 def select_citations_for_answer(answer: str, citations: list[dict]) -> tuple[str, list[dict]]:
     valid_by_label = {citation["label"]: citation for citation in citations}
-    labels_in_answer = [label for label in CITATION_RE.findall(answer) if label in valid_by_label]
+    labels_in_answer = [label for label in citation_labels(answer) if label in valid_by_label]
 
     if labels_in_answer:
         unique_labels = list(dict.fromkeys(labels_in_answer))
@@ -71,12 +75,16 @@ def answer_has_strong_citation_support(answer: str, citations: list[dict], min_s
         return False
 
     for claim in _extract_claims(answer):
-        labels = CITATION_RE.findall(claim)
+        labels = citation_labels(claim)
         if not labels:
             return False
         if any(label not in valid_by_label for label in labels):
             return False
     return True
+
+
+def citation_labels(text: str) -> list[str]:
+    return [label for group in CITATION_RE.findall(text) for label in LABEL_RE.findall(group)]
 
 
 def _is_no_answer(answer: str) -> bool:
@@ -85,8 +93,21 @@ def _is_no_answer(answer: str) -> bool:
 
 
 def _extract_claims(answer: str) -> list[str]:
-    sentences = re.split(r"(?<=[.!?])\s+", answer.strip())
-    return [sentence.strip() for sentence in sentences if sentence.strip()]
+    """Split an answer into claim blocks (paragraphs and list items) that must carry a citation.
+
+    LLMs usually cite once at the end of a paragraph or list item, so each
+    line-level block is checked rather than each sentence. Headings, list
+    lead-ins ending in ":" and very short fragments are not factual claims.
+    """
+    claims: list[str] = []
+    for line in answer.strip().splitlines():
+        block = BULLET_PREFIX_RE.sub("", line).strip()
+        if not block or block.startswith("#") or block.endswith(":"):
+            continue
+        if not CITATION_RE.search(block) and len(block.split()) < MIN_CLAIM_WORDS:
+            continue
+        claims.append(block)
+    return claims
 
 
 def _format_page_range(page_start: int | None, page_end: int | None) -> str:

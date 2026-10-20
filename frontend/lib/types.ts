@@ -95,6 +95,7 @@ export type QueryTrace = {
   };
   answer: string;
   status: string;
+  error_message: string | null;
   auth: {
     user_id: string | null;
     groups: string[];

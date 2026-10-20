@@ -125,7 +125,10 @@ class IngestionJobService:
                 if failed_job is not None:
                     failed_job.retry_count = (failed_job.retry_count or 0) + 1
                     max_retries = failed_job.max_retries or 3
-                    failed_job.status = "failed" if failed_job.retry_count >= max_retries else "queued"
+                    # In sync mode there is no worker to pick a re-queued job up
+                    # again, so fail immediately and surface the error.
+                    out_of_retries = self.sync_mode or failed_job.retry_count >= max_retries
+                    failed_job.status = "failed" if out_of_retries else "queued"
                     failed_job.error_message = str(exc)
                     failed_job.failed_at = _utcnow() if failed_job.status == "failed" else None
                     failed_job.locked_at = None

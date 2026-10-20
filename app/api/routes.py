@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 import uuid
 
@@ -27,12 +26,14 @@ from app.services.retrieval_service import RetrievalService
 
 router = APIRouter()
 ingestion_service = IngestionService()
-_sync_mode = os.environ.get("INGESTION_MODE", "").lower() in {"sync", "synchronous", "inline"}
+_sync_mode = settings.ingestion_mode.lower() in {"sync", "synchronous", "inline"}
 ingestion_job_service = IngestionJobService(ingestion_service=ingestion_service, sync_mode=_sync_mode)
 retrieval_service = RetrievalService()
 llm_service = LLMService()
 tracer = LangfuseTracer()
 logger = logging.getLogger(__name__)
+
+LLM_FAILURE_ANSWER = "The answer could not be generated because the language model request failed. Open the trace for the error details."
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -56,6 +57,13 @@ async def ingest_document(
     auth: AuthContext = Depends(require_auth),
 ) -> DocumentIngestResponse:
     content = await _read_upload_file_limited(file)
+    # Admin uploads form the shared knowledge base, readable by every
+    # authenticated key. Admin keys only carry the "admin" group, so a private
+    # admin upload would be invisible to all user keys.
+    if auth.is_admin:
+        visibility, allowed_user_ids, allowed_group_ids = "public", [], []
+    else:
+        visibility, allowed_user_ids, allowed_group_ids = "private", [auth.user_id], auth.groups
     job = ingestion_job_service.create_job(
         db=db,
         filename=file.filename or "uploaded.pdf",
@@ -63,9 +71,9 @@ async def ingest_document(
         content=content,
         trace_id=getattr(request.state, "trace_id", None),
         owner_id=auth.user_id,
-        visibility="private",
-        allowed_user_ids=[auth.user_id],
-        allowed_group_ids=auth.groups,
+        visibility=visibility,
+        allowed_user_ids=allowed_user_ids,
+        allowed_group_ids=allowed_group_ids,
     )
     logger.info(
         "ingestion_job_queued",
@@ -175,9 +183,9 @@ def query(
             # in the query log so it is visible in the trace UI and metrics.
             logger.warning(
                 "llm_provider_failed",
-                extra={"event": "llm_provider_failed", "reason": str(exc)[:200], "trace_id": trace_id},
+                extra={"event": "llm_provider_failed", "reason": exc.message[:300], "trace_id": trace_id},
             )
-            answer = "I could not find this in the uploaded documents."
+            answer = LLM_FAILURE_ANSWER
             metrics = _build_metrics(
                 started=started,
                 retrieval_metrics=retrieval_result.metrics,
@@ -198,12 +206,13 @@ def query(
                 model=settings.active_chat_model,
                 trace_json={**retrieval_result.trace, "retrieved_chunks": []},
                 metrics_json=metrics,
-                validation_json={"support_ok": False, "reason": "llm_provider_failed"},
+                validation_json={"support_ok": False, "reason": "llm_provider_failed", "error": exc.message},
                 user_id=auth.user_id,
                 groups=auth.groups,
                 auth_role=auth.role,
                 denied_retrieval_count=denied_retrieval_count,
-                status="no_answer",
+                status="llm_failed",
+                error_message=exc.message,
             )
             db.add(query_log)
             db.flush()
@@ -342,6 +351,7 @@ def get_query_trace(
         "metrics": query_log.metrics_json or {},
         "answer": query_log.answer,
         "status": query_log.status,
+        "error_message": query_log.error_message,
         "auth": {"user_id": query_log.user_id, "groups": query_log.groups, "role": query_log.auth_role},
         "denied_retrieval_count": query_log.denied_retrieval_count,
     }

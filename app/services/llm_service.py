@@ -69,8 +69,10 @@ class LLMService:
                     {"role": "user", "content": user_prompt},
                 ],
             )
+        except ExternalServiceError:
+            raise
         except Exception as exc:
-            raise ExternalServiceError("LLM provider request failed") from exc
+            raise ExternalServiceError(f"LLM provider request failed: {_describe_error(exc)}") from exc
 
         # Guard against unexpected payloads (e.g. thinking/reasoning models
         # whose response contains no text output, or provider quirks that
@@ -125,6 +127,10 @@ class LLMService:
 
 SOURCE_BLOCK_RE = re.compile(r"\[(S\d+)\][^\n]*\n(?P<text>.*?)(?=\n\n---\n\n|\Z)", re.S)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _describe_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
 
 
 def _use_local_ai() -> bool:

@@ -53,6 +53,7 @@ export function TraceViewer({ trace }: { trace: QueryTrace | null }) {
             <Badge>denied {trace.denied_retrieval_count}</Badge>
             <Badge>{trace.auth.user_id ?? "anonymous"}</Badge>
           </div>
+          {trace.error_message && <div className="rounded-md border border-red-400/20 bg-red-950/20 p-3 text-sm text-red-100">{trace.error_message}</div>}
           <Separator />
           <div className="grid gap-3 sm:grid-cols-3">
             <Meta icon={Cpu} label="Model" value={trace.model_usage.model} />

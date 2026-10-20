@@ -8,7 +8,7 @@ from statistics import mean
 import httpx
 
 NO_ANSWER_TEXT = "i could not find this in the uploaded documents"
-CITATION_RE = re.compile(r"\[(S\d+)\]")
+CITATION_RE = re.compile(r"\[(S\d+(?:\s*[,;]\s*S\d+)*)\]")
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -113,7 +113,7 @@ def _contains_expected_source(items: list[dict], expected_source: str | None, ex
 def _faithfulness_heuristic(answer: str, citations: list[dict], should_answer: bool) -> bool:
     if not should_answer:
         return NO_ANSWER_TEXT in answer.lower()
-    cited_labels = set(CITATION_RE.findall(answer))
+    cited_labels = {label for group in CITATION_RE.findall(answer) for label in re.findall(r"S\d+", group)}
     citation_labels = {citation.get("label") for citation in citations}
     return bool(answer.strip()) and bool(cited_labels) and cited_labels.issubset(citation_labels)
 
