@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-verify",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8001"],
+      "env": {
+        "DATABASE_URL": "sqlite:///C:/Users/krish/AppData/Local/Temp/claude/C--kernal-MCA-final-year-proj-trace-rag-system/20b19379-d742-423c-a683-1899dca26e40/scratchpad/multi/trace.db",
+        "LOCAL_STORAGE_PATH": "C:/Users/krish/AppData/Local/Temp/claude/C--kernal-MCA-final-year-proj-trace-rag-system/20b19379-d742-423c-a683-1899dca26e40/scratchpad/multi/storage",
+        "AI_PROVIDER": "local"
+      },
+      "port": 8001
+    }
+  ]
+}
