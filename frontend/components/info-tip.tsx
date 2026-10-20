@@ -7,7 +7,7 @@ export function InfoTip({ term }: { term: keyof typeof GLOSSARY | string }) {
   if (!entry) return null;
   return (
     <span className="group relative inline-flex align-middle">
-      <button type="button" aria-label={`What is ${entry.title}?`} className="text-zinc-500 transition-colors hover:text-cyan-200 focus:text-cyan-200 focus:outline-none">
+      <button type="button" aria-label={`What is ${entry.title}?`} className="text-zinc-500 transition-colors hover:text-blue-300 focus:text-blue-300 focus:outline-none">
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
       <span

@@ -71,7 +71,7 @@ function MetricRequirements() {
         {rows.map((row) => (
           <div key={row.group} className="rounded-md border border-white/10 bg-white/[0.03] p-4">
             <div className="text-sm font-medium text-white">{row.group}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-cyan-100">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-blue-200">
               {row.metrics}
               {row.terms.map((term) => <InfoTip key={term} term={term} />)}
             </div>
@@ -126,7 +126,7 @@ function DatasetPanel({ datasets, error, onCreated }: { datasets: { id: number; 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Database className="h-4 w-4 text-cyan-200" /> Datasets</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Database className="h-4 w-4 text-blue-300" /> Datasets</CardTitle>
         <CardDescription>
           One JSON object per line (or a JSON array). Answerable cases name their <code>expected_documents</code>; <code>expected_evidence</code>, <code>expected_pages</code> and <code>reference_answer</code> are optional. Legacy <code>golden_qa</code> files work too.
         </CardDescription>
@@ -150,7 +150,7 @@ function DatasetPanel({ datasets, error, onCreated }: { datasets: { id: number; 
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={create} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Create dataset</Button>
           <Button variant="outline" onClick={() => setText(TEMPLATE)}>Insert example</Button>
-          <label className="cursor-pointer text-sm text-cyan-200 hover:text-cyan-100">
+          <label className="cursor-pointer text-sm text-blue-300 hover:text-blue-200">
             Load .jsonl / .json file
             <input
               type="file"
@@ -203,7 +203,7 @@ function RunForm({ datasets, onStarted }: { datasets: { id: number; name: string
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FlaskConical className="h-4 w-4 text-cyan-200" /> New evaluation run</CardTitle>
+        <CardTitle className="flex items-center gap-2"><FlaskConical className="h-4 w-4 text-blue-300" /> New evaluation run</CardTitle>
         <CardDescription>Each run sends every question through the real pipeline with these settings and records them, so runs can be compared.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -263,7 +263,7 @@ function RunsTable({ runs, error, selected, onToggle, onOpen }: { runs: EvalRun[
       <CardContent className="overflow-x-auto p-0">
         {error && <div className="p-4"><ErrorState title="Could not load runs" message={error} /></div>}
         <table className="w-full min-w-[980px] text-sm">
-          <thead className="border-b border-white/10 text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
+          <thead className="border-b border-white/10 text-left text-xs text-zinc-500">
             <tr>
               <th className="px-4 py-3" />
               <th className="px-4 py-3 font-medium">Run</th>
@@ -288,7 +288,7 @@ function RunsTable({ runs, error, selected, onToggle, onOpen }: { runs: EvalRun[
               return (
                 <tr key={run.id} className="border-b border-white/5">
                   <td className="px-4 py-3">
-                    <input type="checkbox" aria-label={`Compare run ${run.id}`} checked={selected.includes(run.id)} onChange={() => onToggle(run.id)} disabled={run.status !== "completed"} className="h-4 w-4 accent-cyan-300" />
+                    <input type="checkbox" aria-label={`Compare run ${run.id}`} checked={selected.includes(run.id)} onChange={() => onToggle(run.id)} disabled={run.status !== "completed"} className="h-4 w-4 accent-blue-400" />
                   </td>
                   <td className="max-w-xs px-4 py-3">
                     <div className="truncate text-white">#{run.id} {run.label}</div>
@@ -355,7 +355,7 @@ function Comparison({ runIds }: { runIds: number[] }) {
         <BarBreakdown data={chartData} xKey="metric" series={runs.map((run) => ({ key: `run${run.id}`, label: `#${run.id} ${run.label}`, percent: true }))} height={280} />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
+            <thead className="text-left text-xs text-zinc-500">
               <tr>
                 <th className="py-2 pr-4 font-medium">Setting / metric</th>
                 {runs.map((run) => <th key={run.id} className="py-2 pr-4 font-medium">#{run.id}</th>)}
@@ -368,7 +368,7 @@ function Comparison({ runIds }: { runIds: number[] }) {
                 return (
                   <tr key={key} className="border-t border-white/5">
                     <td className="py-2 pr-4 text-zinc-400">{key.replaceAll("_", " ")}</td>
-                    {values.map((value, index) => <td key={index} className={cn("py-2 pr-4", differs ? "font-medium text-cyan-100" : "text-zinc-300")}>{value}</td>)}
+                    {values.map((value, index) => <td key={index} className={cn("py-2 pr-4", differs ? "font-medium text-blue-200" : "text-zinc-300")}>{value}</td>)}
                   </tr>
                 );
               })}
@@ -391,7 +391,7 @@ function Comparison({ runIds }: { runIds: number[] }) {
         </div>
         {comparison.data && comparison.data.cases.length > 0 && (
           <div className="overflow-x-auto">
-            <div className="mb-2 text-xs uppercase tracking-[0.14em] text-zinc-500">Per-question diagnosis</div>
+            <div className="mb-2 text-xs text-zinc-500">Per-question diagnosis</div>
             <table className="w-full min-w-[640px] text-sm">
               <tbody>
                 {comparison.data.cases.map((item) => (
@@ -430,7 +430,7 @@ function RunDetail({ runId, onClose }: { runId: number; onClose: () => void }) {
       <CardContent className="overflow-x-auto p-0">
         {run.error && <div className="p-4"><ErrorState title="Could not load run" message={run.error} /></div>}
         <table className="w-full min-w-[900px] text-sm">
-          <thead className="border-b border-white/10 text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
+          <thead className="border-b border-white/10 text-left text-xs text-zinc-500">
             <tr>
               <th className="px-4 py-3 font-medium">Question</th>
               <th className="px-4 py-3 text-right font-medium">Recall</th>
@@ -460,7 +460,7 @@ function RunDetail({ runId, onClose }: { runId: number; onClose: () => void }) {
                   {result.diagnosis?.rule && <div className="mt-1 text-xs text-zinc-500">{result.diagnosis.subtype?.replaceAll("_", " ")} · {result.diagnosis.rule}</div>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {result.query_log_id && <Link href={`/trace?id=${result.query_log_id}`} className="text-cyan-200 hover:text-cyan-100">Trace →</Link>}
+                  {result.query_log_id && <Link href={`/trace?id=${result.query_log_id}`} className="text-blue-300 hover:text-blue-200">Trace →</Link>}
                 </td>
               </tr>
             ))}

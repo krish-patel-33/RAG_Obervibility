@@ -49,12 +49,12 @@ export function TraceViewer({ trace, compact = false, onUpdate }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Question</div>
+            <div className="text-xs text-zinc-500">Question</div>
             <p className="mt-1 text-sm text-white">{trace.original_query}</p>
           </div>
           {!compact && (
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Answer returned</div>
+              <div className="text-xs text-zinc-500">Answer returned</div>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-zinc-200">{trace.answer ?? "—"}</p>
               {trace.raw_answer && trace.raw_answer !== trace.answer && (
                 <details className="mt-2 rounded-md border border-amber-400/20 bg-amber-950/10 p-3 text-sm">
@@ -91,7 +91,7 @@ export function TraceViewer({ trace, compact = false, onUpdate }: Props) {
           )}
           {trace.context.text ? (
             <details>
-              <summary className="cursor-pointer text-sm text-cyan-200">Show the exact text</summary>
+              <summary className="cursor-pointer text-sm text-blue-300">Show the exact text</summary>
               <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-white/10 bg-zinc-950 p-3 text-xs leading-5 text-zinc-300">{trace.context.text}</pre>
             </details>
           ) : (
@@ -161,13 +161,13 @@ function DiagnosisPanel({ trace, onUpdate }: { trace: QueryTrace; onUpdate?: (tr
             </ul>
           )}
           {diagnosis.recommendation && (
-            <div className="rounded-md border border-cyan-300/15 bg-cyan-300/5 p-3 text-sm text-cyan-50">
+            <div className="rounded-md border border-blue-400/15 bg-blue-400/5 p-3 text-sm text-cyan-50">
               <span className="font-medium">What to try: </span>{diagnosis.recommendation}
             </div>
           )}
           {diagnosis.explanation && (
             <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-zinc-200">
-              <div className="mb-1 text-xs uppercase tracking-[0.14em] text-zinc-500">Explanation ({diagnosis.explanation.method})</div>
+              <div className="mb-1 text-xs text-zinc-500">Explanation ({diagnosis.explanation.method})</div>
               {diagnosis.explanation.text}
             </div>
           )}
@@ -200,7 +200,7 @@ function EvaluationPanel({ trace, compact }: { trace: QueryTrace; compact: boole
           {quality.judge_error && <div className="text-sm text-amber-200">LLM judge failed, heuristic used instead: {quality.judge_error}</div>}
           {!compact && quality.claims && quality.claims.length > 0 && (
             <div className="space-y-2">
-              <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">Claim-by-claim check</div>
+              <div className="text-xs text-zinc-500">Claim-by-claim check</div>
               {quality.claims.map((claim, index) => (
                 <div key={index} className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm">
                   <div className="flex items-start justify-between gap-3">
@@ -218,7 +218,7 @@ function EvaluationPanel({ trace, compact }: { trace: QueryTrace; compact: boole
       )}
       {retrieval && (
         <div className="mt-4">
-          <div className="mb-2 text-xs uppercase tracking-[0.14em] text-zinc-500">Retrieval quality</div>
+          <div className="mb-2 text-xs text-zinc-500">Retrieval quality</div>
           {retrieval.available ? (
             <div className="grid gap-3 sm:grid-cols-4">
               <Score label={`Recall@${retrieval.k}`} term="recall_at_k" value={retrieval.recall_at_k} />
@@ -277,12 +277,12 @@ function RetrievalPanel({ trace, compact }: { trace: QueryTrace; compact: boolea
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-xs tabular-nums text-zinc-500">#{index + 1}</span>
-                  <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
+                  <FileText className="h-4 w-4 shrink-0 text-blue-300" />
                   <span className="truncate text-sm font-medium text-white">{chunk.filename}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {relevantIds.has(chunk.chunk_id) && <Badge className="text-emerald-200">relevant (ground truth)</Badge>}
-                  {view === "final" && contextIds.has(chunk.chunk_id) && <Badge className="text-cyan-100">in context</Badge>}
+                  {view === "final" && contextIds.has(chunk.chunk_id) && <Badge className="text-blue-200">in context</Badge>}
                   {view === "final" && droppedIds.has(chunk.chunk_id) && <Badge className="text-violet-200">dropped from context</Badge>}
                   <Badge>score {chunk.score.toFixed(3)}</Badge>
                   <Badge>{chunk.source}</Badge>
@@ -324,7 +324,7 @@ function Score({ label, value, term }: { label: string; value: number | null | u
   const tone = value === null || value === undefined ? "text-zinc-400" : value >= 0.8 ? "text-emerald-200" : value >= 0.5 ? "text-amber-200" : "text-red-200";
   return (
     <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-zinc-500">
+      <div className="flex items-center gap-1.5 text-xs text-zinc-500">
         {label}
         {term && <InfoTip term={term} />}
       </div>
@@ -336,7 +336,7 @@ function Score({ label, value, term }: { label: string; value: number | null | u
 function Meta({ label, value, tone }: { label: string; value: string; tone?: "bad" }) {
   return (
     <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">{label}</div>
+      <div className="text-xs text-zinc-500">{label}</div>
       <div className={cn("mt-2 truncate text-sm font-medium text-zinc-100", tone === "bad" && "text-red-200")} title={value}>{value}</div>
     </div>
   );

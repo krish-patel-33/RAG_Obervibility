@@ -1,43 +1,25 @@
 "use client";
 
-import { FileText, Hash, Layers } from "lucide-react";
-import { motion } from "framer-motion";
 import type { Citation } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export function CitationCard({ citation, onClick }: { citation: Citation; onClick?: () => void }) {
+  const page = citation.page_start
+    ? citation.page_end && citation.page_end !== citation.page_start
+      ? `pp. ${citation.page_start}–${citation.page_end}`
+      : `p. ${citation.page_start}`
+    : null;
   return (
-    <motion.button
+    <button
       type="button"
-      whileHover={{ y: -2 }}
       onClick={onClick}
-      className="w-full text-left"
-      title="Open citation in trace panel"
+      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-left transition-colors hover:border-white/15 hover:bg-white/[0.04]"
     >
-      <Card className="border-cyan-300/15 bg-cyan-300/5 transition-colors hover:border-cyan-300/35">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-              <div className="truncate text-sm font-medium text-white">{citation.filename}</div>
-            </div>
-            <Badge className="border-cyan-300/20 bg-cyan-300/10 text-cyan-100">{citation.label}</Badge>
-          </div>
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-300">{citation.snippet}</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-500">
-            <span className="inline-flex items-center gap-1">
-              <Layers className="h-3.5 w-3.5" />
-              page {citation.page_start ?? "n/a"}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Hash className="h-3.5 w-3.5" />
-              chunk {citation.chunk_id}
-            </span>
-            <span>score {citation.score.toFixed(4)}</span>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.button>
+      <div className="flex items-baseline gap-2 text-xs">
+        <span className="font-medium text-zinc-400">{citation.label}</span>
+        <span className="truncate font-medium text-zinc-200">{citation.filename}</span>
+        {page && <span className="shrink-0 text-zinc-500">{page}</span>}
+      </div>
+      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-zinc-400">{citation.snippet}</p>
+    </button>
   );
 }

@@ -155,7 +155,7 @@ export class RagApiClient {
 
   private async request<T>(path: string, init: RequestInit & { auth?: boolean } = {}) {
     if (init.auth !== false && !this.apiKey) {
-      throw new RagApiError("API key is not configured. Set it in Settings or NEXT_PUBLIC_RAG_API_KEY.", 0, null);
+      throw new RagApiError("Not connected yet. Add your access key in Settings.", 0, null);
     }
 
     // An empty base URL is valid: it means the RAG API is served on the

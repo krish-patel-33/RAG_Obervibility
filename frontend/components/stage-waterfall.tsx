@@ -2,7 +2,7 @@ import type { StageTiming } from "@/lib/types";
 import { cn, formatMs } from "@/lib/utils";
 
 const STAGE_COLORS: Record<string, string> = {
-  query_embedding: "bg-cyan-300",
+  query_embedding: "bg-blue-400",
   document_retrieval: "bg-sky-300",
   reranking: "bg-indigo-300",
   access_control: "bg-zinc-400",

@@ -24,12 +24,12 @@ export function MetricCard({
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+        <div className="flex items-center gap-2 text-sm text-zinc-400">
           {label}
           {term && <InfoTip term={term} />}
         </div>
-        <div className={cn("mt-4 text-3xl font-semibold tracking-tight tabular-nums", tones[tone])}>{value}</div>
-        <div className="mt-2 text-sm text-zinc-500">{detail}</div>
+        <div className={cn("mt-2 text-2xl font-semibold tracking-tight tabular-nums", tones[tone])}>{value}</div>
+        <div className="mt-1 text-xs text-zinc-500">{detail}</div>
       </CardContent>
     </Card>
   );
