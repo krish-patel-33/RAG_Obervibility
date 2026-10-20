@@ -29,6 +29,13 @@ class QueryLog(Base):
     validation_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # "api" for live traffic, "evaluation" for queries issued by an evaluation run.
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="api", server_default="api")
+    # pending -> completed | skipped | failed. Evaluation runs after the response is sent.
+    evaluation_status: Mapped[str] = mapped_column(String(32), nullable=False, default="skipped", server_default="skipped")
+    evaluation_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    diagnosis_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
+    failure_category: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     citations: Mapped[list["Citation"]] = relationship(back_populates="query_log", cascade="all, delete-orphan")

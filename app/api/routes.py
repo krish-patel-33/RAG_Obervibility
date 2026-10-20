@@ -1,39 +1,34 @@
 import logging
-import time
 import uuid
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import AuthContext, require_auth
 from app.core.config import settings
-from app.core.errors import AppError, NotFoundError, ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.db.session import get_db
+from app.models.chunk import Chunk
 from app.models.citation import Citation
-from app.models.document import IngestionJob
+from app.models.document import Document, DocumentVersion, IngestionJob
 from app.models.query_log import QueryLog
-from app.schemas.document import DocumentIngestResponse, IngestionJobResponse
+from app.schemas.document import DocumentIngestResponse, DocumentSummary, IngestionJobResponse
 from app.schemas.health import HealthResponse
-from app.schemas.query import CitationResponse, QueryRequest, QueryResponse
-from app.services.citation_formatter import answer_has_strong_citation_support, build_source_context, select_citations_for_answer
-from app.services.access_control import filter_retrieved_chunks
+from app.schemas.query import QueryRequest, QueryResponse
+from app.services.access_control import can_access_document
+from app.services.evaluation_service import run_live_evaluation
 from app.services.ingestion_job_service import IngestionJobService
-from app.services.ingestion_service import IngestionService
-from app.services.llm_service import LLMService
-from app.services.observability import LangfuseTracer, QueryObservation, estimate_cost
+from app.services.ingestion_service import IngestionService, TEXT_EXTENSIONS
+from app.services.query_pipeline import QueryPipeline
 from app.services.readiness import readiness_check
-from app.services.retrieval_service import RetrievalService
 
 router = APIRouter()
 ingestion_service = IngestionService()
 _sync_mode = settings.ingestion_mode.lower() in {"sync", "synchronous", "inline"}
 ingestion_job_service = IngestionJobService(ingestion_service=ingestion_service, sync_mode=_sync_mode)
-retrieval_service = RetrievalService()
-llm_service = LLMService()
-tracer = LangfuseTracer()
+query_pipeline = QueryPipeline()
 logger = logging.getLogger(__name__)
-
-LLM_FAILURE_ANSWER = "The answer could not be generated because the language model request failed. Open the trace for the error details."
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -57,6 +52,8 @@ async def ingest_document(
     auth: AuthContext = Depends(require_auth),
 ) -> DocumentIngestResponse:
     content = await _read_upload_file_limited(file)
+    filename = file.filename or "uploaded.pdf"
+    default_type = "text/plain" if filename.lower().endswith(TEXT_EXTENSIONS) else "application/pdf"
     # Admin uploads form the shared knowledge base, readable by every
     # authenticated key. Admin keys only carry the "admin" group, so a private
     # admin upload would be invisible to all user keys.
@@ -66,8 +63,8 @@ async def ingest_document(
         visibility, allowed_user_ids, allowed_group_ids = "private", [auth.user_id], auth.groups
     job = ingestion_job_service.create_job(
         db=db,
-        filename=file.filename or "uploaded.pdf",
-        content_type=file.content_type or "application/pdf",
+        filename=filename,
+        content_type=file.content_type or default_type,
         content=content,
         trace_id=getattr(request.state, "trace_id", None),
         owner_id=auth.user_id,
@@ -87,6 +84,34 @@ async def ingest_document(
         chunk_count=job.chunk_count,
         status=job.status,
     )
+
+
+@router.get("/documents", response_model=list[DocumentSummary])
+def list_documents(db: Session = Depends(get_db), auth: AuthContext = Depends(require_auth)) -> list[DocumentSummary]:
+    chunk_counts = dict(
+        db.execute(
+            select(Chunk.document_id, func.count(Chunk.id))
+            .join(DocumentVersion, Chunk.document_version_id == DocumentVersion.id)
+            .where(DocumentVersion.active.is_(True))
+            .group_by(Chunk.document_id)
+        ).all()
+    )
+    documents = db.execute(select(Document).order_by(Document.id.desc())).scalars()
+    return [
+        DocumentSummary(
+            id=document.id,
+            filename=document.filename,
+            content_type=document.content_type,
+            content_hash=document.content_hash,
+            created_at=document.created_at,
+            visibility=document.visibility,
+            owner_id=document.owner_id,
+            file_size_bytes=document.file_size_bytes,
+            chunk_count=int(chunk_counts.get(document.id, 0)),
+        )
+        for document in documents
+        if can_access_document(document, auth)
+    ]
 
 
 @router.get("/ingestion-jobs/{job_id}", response_model=IngestionJobResponse)
@@ -117,206 +142,21 @@ def get_ingestion_job(
 def query(
     request: Request,
     payload: QueryRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_auth),
 ) -> QueryResponse:
-    trace_id = getattr(request.state, "trace_id", uuid.uuid4().hex)
-    started = time.perf_counter()
-
-    try:
-        retrieval_result = retrieval_service.retrieve_with_trace(db=db, query=payload.question, top_k=payload.top_k, auth=auth)
-        results, denied_retrieval_count = filter_retrieved_chunks(retrieval_result.results, auth)
-        if not results:
-            answer = "I could not find this in the uploaded documents."
-            metrics = _build_metrics(
-                started=started,
-                retrieval_metrics=retrieval_result.metrics,
-                llm_latency_ms=0,
-                prompt_tokens=None,
-                completion_tokens=None,
-                empty_retrieval=True,
-                no_answer=True,
-                citation_failure=False,
-            )
-            validation = {"support_ok": False, "reason": "empty_retrieval"}
-            query_log = QueryLog(
-                trace_id=trace_id,
-                query=payload.question,
-                answer=answer,
-                retrieved_chunk_ids=[],
-                latency_ms=_elapsed_ms(started),
-                model=settings.active_chat_model,
-                trace_json={**retrieval_result.trace, "retrieved_chunks": [], "reranked_chunks": []},
-                metrics_json=metrics,
-                validation_json=validation,
-                user_id=auth.user_id,
-                groups=auth.groups,
-                auth_role=auth.role,
-                denied_retrieval_count=denied_retrieval_count,
-                status="no_answer",
-            )
-            db.add(query_log)
-            db.flush()
-            query_log_id = query_log.id
-            db.commit()
-            _trace_query(
-                trace_id=trace_id,
-                query=payload.question,
-                answer=answer,
-                retrieved_chunks=[],
-                citations=[],
-                metrics=metrics,
-                validation=validation,
-                prompt_tokens=None,
-                completion_tokens=None,
-                total_tokens=None,
-            )
-            return QueryResponse(trace_id=trace_id, query_log_id=query_log_id, answer=answer, citations=[], no_answer=True)
-
-        source_context, citation_payloads = build_source_context(results, max_chars=settings.max_context_chars)
-        llm_started = time.perf_counter()
-        try:
-            llm_result = llm_service.answer(question=payload.question, source_context=source_context)
-        except AppError as exc:
-            # Graceful degradation: an LLM provider failure must not crash the
-            # request. Return a safe no-answer response and record the failure
-            # in the query log so it is visible in the trace UI and metrics.
-            logger.warning(
-                "llm_provider_failed",
-                extra={"event": "llm_provider_failed", "reason": exc.message[:300], "trace_id": trace_id},
-            )
-            answer = LLM_FAILURE_ANSWER
-            metrics = _build_metrics(
-                started=started,
-                retrieval_metrics=retrieval_result.metrics,
-                llm_latency_ms=_elapsed_ms(llm_started),
-                prompt_tokens=None,
-                completion_tokens=None,
-                empty_retrieval=False,
-                no_answer=True,
-                citation_failure=False,
-                llm_failed=True,
-            )
-            query_log = QueryLog(
-                trace_id=trace_id,
-                query=payload.question,
-                answer=answer,
-                retrieved_chunk_ids=[result.chunk.id for result in results],
-                latency_ms=_elapsed_ms(started),
-                model=settings.active_chat_model,
-                trace_json={**retrieval_result.trace, "retrieved_chunks": []},
-                metrics_json=metrics,
-                validation_json={"support_ok": False, "reason": "llm_provider_failed", "error": exc.message},
-                user_id=auth.user_id,
-                groups=auth.groups,
-                auth_role=auth.role,
-                denied_retrieval_count=denied_retrieval_count,
-                status="llm_failed",
-                error_message=exc.message,
-            )
-            db.add(query_log)
-            db.flush()
-            db.commit()
-            return QueryResponse(trace_id=trace_id, query_log_id=query_log.id, answer=answer, citations=[], no_answer=True)
-        llm_latency_ms = _elapsed_ms(llm_started)
-        answer, selected_citation_payloads = select_citations_for_answer(llm_result.answer, citation_payloads)
-        support_ok = answer_has_strong_citation_support(answer, selected_citation_payloads, min_score=settings.min_citation_score)
-        no_answer = "could not find" in answer.lower() or not support_ok
-        if not support_ok:
-            answer = "I could not find this in the uploaded documents."
-            selected_citation_payloads = []
-        validation = {
-            "support_ok": support_ok,
-            "reason": "ok" if support_ok else "weak_or_missing_citation_support",
-            "min_citation_score": settings.min_citation_score,
-        }
-        metrics = _build_metrics(
-            started=started,
-            retrieval_metrics=retrieval_result.metrics,
-            llm_latency_ms=llm_latency_ms,
-            prompt_tokens=llm_result.prompt_tokens,
-            completion_tokens=llm_result.completion_tokens,
-            empty_retrieval=False,
-            no_answer=no_answer,
-            citation_failure=not support_ok,
-        )
-
-        query_log = QueryLog(
-            trace_id=trace_id,
-            query=payload.question,
-            answer=answer,
-            retrieved_chunk_ids=[result.chunk.id for result in results],
-            latency_ms=_elapsed_ms(started),
-            model=settings.active_chat_model,
-            prompt_tokens=llm_result.prompt_tokens,
-            completion_tokens=llm_result.completion_tokens,
-            total_tokens=llm_result.total_tokens,
-            trace_json={
-                **retrieval_result.trace,
-                "retrieved_chunks": _results_to_trace(results),
-                "reranked_chunks": _results_to_trace(results),
-                "final_citations": selected_citation_payloads,
-            },
-            metrics_json=metrics,
-            validation_json=validation,
-            user_id=auth.user_id,
-            groups=auth.groups,
-            auth_role=auth.role,
-            denied_retrieval_count=denied_retrieval_count,
-            status="no_answer" if no_answer else "completed",
-        )
-        db.add(query_log)
-        db.flush()
-
-        citations: list[CitationResponse] = []
-        if not no_answer:
-            for citation_payload in selected_citation_payloads:
-                db.add(
-                    Citation(
-                        query_log_id=query_log.id,
-                        chunk_id=citation_payload["chunk_id"],
-                        citation_label=citation_payload["label"],
-                        source_filename=citation_payload["filename"],
-                        page_start=citation_payload["page_start"],
-                        page_end=citation_payload["page_end"],
-                        score=citation_payload["score"],
-                        snippet=citation_payload["snippet"],
-                    )
-                )
-                citations.append(CitationResponse(**citation_payload))
-
-        db.commit()
-        _trace_query(
-            trace_id=trace_id,
-            query=payload.question,
-            answer=answer,
-            retrieved_chunks=retrieval_result.trace.get("reranked_chunks", []),
-            citations=selected_citation_payloads,
-            metrics=metrics,
-            validation=validation,
-            prompt_tokens=llm_result.prompt_tokens,
-            completion_tokens=llm_result.completion_tokens,
-            total_tokens=llm_result.total_tokens,
-        )
-        logger.info(
-            "query_completed",
-            extra={
-                "event": "query_completed",
-                "trace_id": trace_id,
-                "latency_ms": _elapsed_ms(started),
-                "model": settings.active_chat_model,
-                "total_tokens": llm_result.total_tokens,
-            },
-        )
-        return QueryResponse(trace_id=trace_id, query_log_id=query_log.id, answer=answer, citations=citations, no_answer=no_answer)
-    except AppError as exc:
-        db.rollback()
-        _record_failed_query(db, trace_id, payload.question, started, exc.message, auth=auth)
-        logger.warning(
-            "query_failed",
-            extra={"event": "query_failed", "trace_id": trace_id, "user_id": auth.user_id, "auth_role": auth.role},
-        )
-        raise
+    outcome = query_pipeline.run(
+        db=db,
+        question=payload.question,
+        auth=auth,
+        trace_id=getattr(request.state, "trace_id", None) or uuid.uuid4().hex,
+        top_k=payload.top_k,
+    )
+    # Evaluation runs after the response is sent so users never wait for it.
+    if outcome.query_log.evaluation_status == "pending":
+        background_tasks.add_task(run_live_evaluation, outcome.query_log.id)
+    return outcome.response
 
 
 @router.get("/query/{query_log_id}/trace")
@@ -325,20 +165,35 @@ def get_query_trace(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_auth),
 ) -> dict:
-    query_log = db.get(QueryLog, query_log_id, options=[joinedload(QueryLog.citations)])
-    if query_log is None:
-        raise NotFoundError("Query log not found")
-    if not auth.is_admin and query_log.user_id != auth.user_id:
-        raise NotFoundError("Query log not found")
+    query_log = load_query_log(db, query_log_id, auth)
+    return trace_payload(query_log)
 
-    trace_payload = query_log.trace_json or {}
+
+def load_query_log(db: Session, query_log_id: int, auth: AuthContext) -> QueryLog:
+    query_log = db.get(QueryLog, query_log_id, options=[joinedload(QueryLog.citations)])
+    if query_log is None or (not auth.is_admin and query_log.user_id != auth.user_id):
+        raise NotFoundError("Query log not found")
+    return query_log
+
+
+def trace_payload(query_log: QueryLog) -> dict:
+    trace = query_log.trace_json or {}
+    metrics = query_log.metrics_json or {}
     return {
         "query_log_id": query_log.id,
         "trace_id": query_log.trace_id,
+        "created_at": query_log.created_at.isoformat() if query_log.created_at else None,
+        "source": query_log.source,
         "original_query": query_log.query,
-        "rewritten_query": trace_payload.get("rewritten_query"),
-        "retrieved_chunks": trace_payload.get("retrieved_chunks", []),
-        "reranked_chunks": trace_payload.get("reranked_chunks", []),
+        "rewritten_query": trace.get("rewritten_query"),
+        "retrieval_mode": trace.get("retrieval_mode"),
+        "top_k": trace.get("top_k"),
+        "retrieved_chunks": trace.get("retrieved_chunks", []),
+        "reranked_chunks": trace.get("reranked_chunks", []),
+        "vector_chunks": trace.get("vector_chunks", []),
+        "keyword_chunks": trace.get("keyword_chunks", []),
+        "context": trace.get("context"),
+        "raw_answer": trace.get("raw_answer"),
         "final_citations": [_citation_to_dict(citation) for citation in query_log.citations],
         "validation_result": query_log.validation_json or {},
         "model_usage": {
@@ -346,12 +201,17 @@ def get_query_trace(
             "prompt_tokens": query_log.prompt_tokens,
             "completion_tokens": query_log.completion_tokens,
             "total_tokens": query_log.total_tokens,
-            "estimated_cost": (query_log.metrics_json or {}).get("estimated_cost"),
+            "estimated_cost": metrics.get("estimated_cost"),
         },
-        "metrics": query_log.metrics_json or {},
+        "metrics": metrics,
+        "stages": metrics.get("stages", []),
+        "latency_ms": query_log.latency_ms,
         "answer": query_log.answer,
         "status": query_log.status,
         "error_message": query_log.error_message,
+        "evaluation_status": query_log.evaluation_status,
+        "evaluation": query_log.evaluation_json or {},
+        "diagnosis": query_log.diagnosis_json or {},
         "auth": {"user_id": query_log.user_id, "groups": query_log.groups, "role": query_log.auth_role},
         "denied_retrieval_count": query_log.denied_retrieval_count,
     }
@@ -371,110 +231,6 @@ async def _read_upload_file_limited(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
-def _record_failed_query(
-    db: Session,
-    trace_id: str,
-    question: str,
-    started: float,
-    error_message: str,
-    auth: AuthContext | None = None,
-) -> None:
-    try:
-        metrics = _build_metrics(
-            started=started,
-            retrieval_metrics={},
-            llm_latency_ms=0,
-            prompt_tokens=None,
-            completion_tokens=None,
-            empty_retrieval=False,
-            no_answer=False,
-            citation_failure=False,
-        )
-        db.add(
-            QueryLog(
-                trace_id=trace_id,
-                query=question,
-                answer=None,
-                retrieved_chunk_ids=[],
-                latency_ms=_elapsed_ms(started),
-                model=settings.active_chat_model,
-                trace_json={},
-                metrics_json=metrics,
-                validation_json={"support_ok": False, "reason": "query_failed"},
-                user_id=auth.user_id if auth else None,
-                groups=auth.groups if auth else [],
-                auth_role=auth.role if auth else None,
-                denied_retrieval_count=0,
-                status="failed",
-                error_message=error_message,
-            )
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception("failed_to_record_query_failure", extra={"event": "failed_to_record_query_failure", "trace_id": trace_id})
-
-
-def _elapsed_ms(started: float) -> int:
-    return int((time.perf_counter() - started) * 1000)
-
-
-def _build_metrics(
-    started: float,
-    retrieval_metrics: dict,
-    llm_latency_ms: int,
-    prompt_tokens: int | None,
-    completion_tokens: int | None,
-    empty_retrieval: bool,
-    no_answer: bool,
-    citation_failure: bool,
-    llm_failed: bool = False,
-) -> dict:
-    return {
-        "query_latency_ms": _elapsed_ms(started),
-        "retrieval_latency_ms": retrieval_metrics.get("retrieval_latency_ms", 0),
-        "embedding_latency_ms": retrieval_metrics.get("embedding_latency_ms", 0),
-        "llm_latency_ms": llm_latency_ms,
-        "empty_retrieval": empty_retrieval,
-        "no_answer": no_answer,
-        "citation_failure": citation_failure,
-        "llm_failed": llm_failed,
-        "estimated_cost": estimate_cost(prompt_tokens, completion_tokens),
-    }
-
-
-def _trace_query(
-    trace_id: str,
-    query: str,
-    answer: str | None,
-    retrieved_chunks: list[dict],
-    citations: list[dict],
-    metrics: dict,
-    validation: dict,
-    prompt_tokens: int | None,
-    completion_tokens: int | None,
-    total_tokens: int | None,
-) -> None:
-    tracer.trace_query(
-        QueryObservation(
-            trace_id=trace_id,
-            query=query,
-            answer=answer,
-            retrieved_chunks=retrieved_chunks,
-            citations=citations,
-            metrics=metrics,
-            validation=validation,
-            model_usage={
-                "model": settings.active_chat_model,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "estimated_cost": metrics.get("estimated_cost"),
-            },
-        )
-    )
-
-
 def _citation_to_dict(citation: Citation) -> dict:
     return {
         "label": citation.citation_label,
@@ -485,23 +241,3 @@ def _citation_to_dict(citation: Citation) -> dict:
         "score": citation.score,
         "snippet": citation.snippet,
     }
-
-
-def _results_to_trace(results) -> list[dict]:
-    payload = []
-    for result in results:
-        chunk = result.chunk
-        payload.append(
-            {
-                "chunk_id": chunk.id,
-                "document_id": chunk.document_id,
-                "filename": chunk.document.filename if getattr(chunk, "document", None) else None,
-                "page_start": chunk.page_start,
-                "page_end": chunk.page_end,
-                "score": round(result.score, 4),
-                "source": result.source,
-                "snippet": chunk.text[:500],
-            }
-        )
-    return payload
-from app.core.auth import AuthContext, require_auth

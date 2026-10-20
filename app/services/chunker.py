@@ -38,7 +38,7 @@ class Chunker:
                 return
 
             words = [word for word, _ in current]
-            pages_for_words = [page for _, page in current]
+            pages_for_words = [page for _, page in current if page is not None]
             text = normalize_text(" ".join(words))
             chunks.append(
                 TextChunk(

@@ -16,7 +16,7 @@ from app.models.document import Document, DocumentVersion
 from app.services.access_control import can_access_document, document_acl_filter
 from app.services.citation_formatter import RetrievedChunk
 from app.services.embedding_service import EmbeddingService
-from app.services.reranker import Reranker, build_reranker
+from app.services.reranker import LocalReranker, NoOpReranker, Reranker, build_reranker
 from app.utils.text import content_tokens
 
 logger = logging.getLogger(__name__)
@@ -41,28 +41,43 @@ class RetrievalService:
     def retrieve(self, db: Session, query: str, top_k: int | None = None, auth: AuthContext | None = None) -> list[RetrievedChunk]:
         return self.retrieve_with_trace(db=db, query=query, top_k=top_k, auth=auth).results
 
-    def retrieve_with_trace(self, db: Session, query: str, top_k: int | None = None, auth: AuthContext | None = None) -> RetrievalTrace:
+    def retrieve_with_trace(
+        self,
+        db: Session,
+        query: str,
+        top_k: int | None = None,
+        auth: AuthContext | None = None,
+        mode: str | None = None,
+        rerank: bool | None = None,
+    ) -> RetrievalTrace:
+        """Retrieve chunks for a query.
+
+        ``mode`` ("hybrid" / "vector") and ``rerank`` override the configured
+        defaults for a single call, so evaluation runs can compare retrieval
+        configurations without restarting the service.
+        """
         query = query.strip()
         if not query:
             raise ValidationAppError("Query cannot be empty")
         auth = auth or AuthContext(user_id="system", groups=["admin"], role="admin")
 
         started = time.perf_counter()
-        metrics = {"embedding_latency_ms": 0, "retrieval_latency_ms": 0}
+        metrics = {"embedding_latency_ms": 0, "retrieval_latency_ms": 0, "rerank_latency_ms": 0}
         limit = top_k or settings.retrieval_top_k
-        if settings.retrieval_mode == "vector":
+        use_rerank = rerank
+        if (mode or settings.retrieval_mode) == "vector":
             vector_results = self._vector_search(db, query, limit, auth, metrics)
-            reranked = self._rerank(query, vector_results, limit)
+            reranked = self._rerank(query, vector_results, limit, metrics, use_rerank)
             metrics["retrieval_latency_ms"] = _elapsed_ms(started)
             return RetrievalTrace(
                 results=reranked,
                 trace={
                     "rewritten_query": None,
                     "retrieval_mode": "vector",
-                    "vector_chunks": _serialize_results(vector_results),
+                    "vector_chunks": serialize_results(vector_results),
                     "keyword_chunks": [],
-                    "fused_chunks": _serialize_results(vector_results),
-                    "reranked_chunks": _serialize_results(reranked),
+                    "fused_chunks": serialize_results(vector_results),
+                    "reranked_chunks": serialize_results(reranked),
                 },
                 metrics=metrics,
             )
@@ -73,17 +88,17 @@ class RetrievalService:
             vector_results = self._vector_search(db, query, limit * settings.hybrid_candidate_multiplier, auth, metrics, min_score=0.0)
             keyword_results = self._keyword_search(db, query, limit * settings.hybrid_candidate_multiplier, auth)
             filtered = self._weighted_rrf(vector_results, keyword_results)
-            reranked = self._rerank(query, filtered, limit)
+            reranked = self._rerank(query, filtered, limit, metrics, use_rerank)
             metrics["retrieval_latency_ms"] = _elapsed_ms(started)
             return RetrievalTrace(
                 results=reranked,
                 trace={
                     "rewritten_query": None,
                     "retrieval_mode": "hybrid",
-                    "vector_chunks": _serialize_results(vector_results),
-                    "keyword_chunks": _serialize_results(keyword_results),
-                    "fused_chunks": _serialize_results(filtered),
-                    "reranked_chunks": _serialize_results(reranked),
+                    "vector_chunks": serialize_results(vector_results),
+                    "keyword_chunks": serialize_results(keyword_results),
+                    "fused_chunks": serialize_results(filtered),
+                    "reranked_chunks": serialize_results(reranked),
                 },
                 metrics=metrics,
             )
@@ -94,17 +109,17 @@ class RetrievalService:
             logger.exception("hybrid_search_failed_falling_back_to_vector", extra={"event": "hybrid_search_failed_falling_back_to_vector"})
 
         vector_results = self._vector_search(db, query, limit, auth, metrics)
-        reranked = self._rerank(query, vector_results, limit)
+        reranked = self._rerank(query, vector_results, limit, metrics, use_rerank)
         metrics["retrieval_latency_ms"] = _elapsed_ms(started)
         return RetrievalTrace(
             results=reranked,
             trace={
                 "rewritten_query": None,
                 "retrieval_mode": "vector_fallback",
-                "vector_chunks": _serialize_results(vector_results),
+                "vector_chunks": serialize_results(vector_results),
                 "keyword_chunks": [],
-                "fused_chunks": _serialize_results(vector_results),
-                "reranked_chunks": _serialize_results(reranked),
+                "fused_chunks": serialize_results(vector_results),
+                "reranked_chunks": serialize_results(reranked),
             },
             metrics=metrics,
         )
@@ -247,13 +262,27 @@ class RetrievalService:
             item["raw"][source] = result.score
             item["sources"].add(source)
 
-    def _rerank(self, query: str, results: list[RetrievedChunk], limit: int) -> list[RetrievedChunk]:
+    def _rerank(
+        self,
+        query: str,
+        results: list[RetrievedChunk],
+        limit: int,
+        metrics: dict[str, int] | None = None,
+        enabled: bool | None = None,
+    ) -> list[RetrievedChunk]:
         if not results:
             return []
-        return self.reranker.rerank(query, results[: settings.rerank_top_k], top_k=limit)
+        reranker = self.reranker if enabled is not False else NoOpReranker()
+        if enabled and isinstance(reranker, NoOpReranker):
+            reranker = LocalReranker()
+        started = time.perf_counter()
+        reranked = reranker.rerank(query, results[: settings.rerank_top_k], top_k=limit)
+        if metrics is not None:
+            metrics["rerank_latency_ms"] = metrics.get("rerank_latency_ms", 0) + _elapsed_ms(started)
+        return reranked
 
 
-def _serialize_results(results: list[RetrievedChunk]) -> list[dict[str, Any]]:
+def serialize_results(results: list[RetrievedChunk]) -> list[dict[str, Any]]:
     payload: list[dict[str, Any]] = []
     for result in results:
         chunk = result.chunk

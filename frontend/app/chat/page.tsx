@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Bot, Loader2, Send, User } from "lucide-react";
@@ -32,6 +33,20 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Evaluation runs after the answer is sent; refresh the trace a few times to show its result.
+  const followEvaluation = async (queryLogId: number) => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      try {
+        const refreshed = await client.trace(queryLogId);
+        setTrace((current) => (current && current.query_log_id === queryLogId ? refreshed : current));
+        if (refreshed.evaluation_status !== "pending") return;
+      } catch {
+        return;
+      }
+    }
+  };
+
   const canSubmit = useMemo(() => question.trim().length >= 3 && !loading, [loading, question]);
 
   const submit = async (event: FormEvent) => {
@@ -49,6 +64,7 @@ export default function ChatPage() {
       addQuery(stored);
       setTrace(nextTrace);
       setMessages((current) => [...current, { role: "assistant", content: response.answer, query: stored }]);
+      if (nextTrace?.evaluation_status === "pending") void followEvaluation(nextTrace.query_log_id);
     } catch (caught) {
       const message = caught instanceof RagApiError ? caught.message : caught instanceof Error ? caught.message : "Query failed.";
       setError(message);
@@ -119,7 +135,14 @@ export default function ChatPage() {
             </div>
           </CardContent>
         </Card>
-        <TraceViewer trace={trace} />
+        <div className="space-y-3">
+          {trace && (
+            <Link href={`/trace?id=${trace.query_log_id}`} className="block text-right text-sm text-cyan-200 hover:text-cyan-100">
+              Open full trace →
+            </Link>
+          )}
+          <TraceViewer trace={trace} compact onUpdate={setTrace} />
+        </div>
       </div>
     </div>
   );

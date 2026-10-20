@@ -35,7 +35,6 @@ class LLMService:
                 self._client = OpenAI(api_key=settings.openai_api_key_str, timeout=settings.request_timeout_seconds)
         return self._client
 
-    @retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(settings.openai_max_retries), reraise=True)
     def answer(self, question: str, source_context: str) -> LLMResult:
         if self._client is None and _use_local_ai():
             return LLMResult(answer=_local_answer(source_context), prompt_tokens=0, completion_tokens=0, total_tokens=0)
@@ -47,13 +46,29 @@ class LLMService:
             "Cite factual claims using source labels like [S1]. Be concise and precise."
         )
         user_prompt = f"QUESTION:\n{question}\n\nSOURCE_CONTEXT:\n{source_context}"
+        return self.complete(system_prompt, user_prompt)
 
+    @property
+    def available(self) -> bool:
+        """True when a real provider (or an injected client) can serve ``complete``."""
+        return self._client is not None or not _use_local_ai()
+
+    @retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(settings.openai_max_retries), reraise=True)
+    def complete(self, system_prompt: str, user_prompt: str, json_output: bool = False) -> LLMResult:
+        """Run one chat completion against the configured provider.
+
+        Used for answering, LLM-as-judge evaluation and diagnosis explanations.
+        ``json_output`` asks the provider for a JSON object response.
+        """
         try:
             if self._uses_gemini_client():
+                config: dict[str, Any] = {"system_instruction": system_prompt}
+                if json_output:
+                    config["response_mime_type"] = "application/json"
                 response = self.client.models.generate_content(
                     model=settings.gemini_chat_model,
                     contents=user_prompt,
-                    config={"system_instruction": system_prompt},
+                    config=config,
                 )
                 usage = getattr(response, "usage_metadata", None)
                 return self._result_from_text(
@@ -62,12 +77,14 @@ class LLMService:
                     getattr(usage, "candidates_token_count", None) if usage else None,
                     getattr(usage, "total_token_count", None) if usage else None,
                 )
+            extra: dict[str, Any] = {"text": {"format": {"type": "json_object"}}} if json_output else {}
             response = self.client.responses.create(
                 model=settings.openai_chat_model,
                 input=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
+                **extra,
             )
         except ExternalServiceError:
             raise

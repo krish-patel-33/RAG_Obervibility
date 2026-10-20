@@ -1,56 +1,52 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { EvalSnapshot, StoredJob, StoredQuery } from "@/lib/types";
+import type { StoredJob, StoredQuery } from "@/lib/types";
 
+// Browser-session conveniences only (recent uploads and chat turns).
+// Metrics, history and evaluation results come from the backend.
 type ConsoleStore = {
   jobs: StoredJob[];
   queries: StoredQuery[];
-  evalSnapshot: EvalSnapshot;
   upsertJob: (job: StoredJob) => void;
   addQuery: (query: StoredQuery) => void;
-  setEvalSnapshot: (snapshot: EvalSnapshot) => void;
   clearSession: () => void;
-};
-
-const defaultEvalSnapshot: EvalSnapshot = {
-  retrieval_relevance: 1,
-  faithfulness: 1,
-  citation_correctness: 1,
-  no_answer_correctness: 1,
-  updatedAt: new Date().toISOString()
 };
 
 const StoreContext = createContext<ConsoleStore | null>(null);
 
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(window.localStorage.getItem(key) || "null") ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStored(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage can be unavailable (private mode, quota); the session still works.
+  }
+}
+
 export function ConsoleStoreProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<StoredJob[]>([]);
   const [queries, setQueries] = useState<StoredQuery[]>([]);
-  const [evalSnapshot, setEvalSnapshotState] = useState<EvalSnapshot>(defaultEvalSnapshot);
 
   useEffect(() => {
-    setJobs(JSON.parse(window.localStorage.getItem("rag-console-jobs") || "[]"));
-    setQueries(JSON.parse(window.localStorage.getItem("rag-console-queries") || "[]"));
-    setEvalSnapshotState(JSON.parse(window.localStorage.getItem("rag-console-evals") || JSON.stringify(defaultEvalSnapshot)));
+    setJobs(readStored("rag-console-jobs", []));
+    setQueries(readStored("rag-console-queries", []));
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem("rag-console-jobs", JSON.stringify(jobs.slice(0, 50)));
-  }, [jobs]);
-
-  useEffect(() => {
-    window.localStorage.setItem("rag-console-queries", JSON.stringify(queries.slice(0, 50)));
-  }, [queries]);
-
-  useEffect(() => {
-    window.localStorage.setItem("rag-console-evals", JSON.stringify(evalSnapshot));
-  }, [evalSnapshot]);
+  useEffect(() => writeStored("rag-console-jobs", jobs.slice(0, 50)), [jobs]);
+  useEffect(() => writeStored("rag-console-queries", queries.slice(0, 50)), [queries]);
 
   const value = useMemo<ConsoleStore>(
     () => ({
       jobs,
       queries,
-      evalSnapshot,
       upsertJob: (job) => {
         setJobs((current) => {
           const exists = current.some((item) => item.job_id === job.job_id);
@@ -59,14 +55,12 @@ export function ConsoleStoreProvider({ children }: { children: React.ReactNode }
         });
       },
       addQuery: (query) => setQueries((current) => [query, ...current].slice(0, 50)),
-      setEvalSnapshot: setEvalSnapshotState,
       clearSession: () => {
         setJobs([]);
         setQueries([]);
-        setEvalSnapshotState(defaultEvalSnapshot);
       }
     }),
-    [evalSnapshot, jobs, queries]
+    [jobs, queries]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -1,0 +1,864 @@
+{
+  "judge": "heuristic",
+  "scenario_count": 47,
+  "accuracy": 1.0,
+  "labels": [
+    "retrieval_failure",
+    "context_construction_failure",
+    "generation_failure",
+    "none"
+  ],
+  "confusion_matrix": {
+    "retrieval_failure": {
+      "retrieval_failure": 8,
+      "context_construction_failure": 0,
+      "generation_failure": 0,
+      "none": 0
+    },
+    "context_construction_failure": {
+      "retrieval_failure": 0,
+      "context_construction_failure": 10,
+      "generation_failure": 0,
+      "none": 0
+    },
+    "generation_failure": {
+      "retrieval_failure": 0,
+      "context_construction_failure": 0,
+      "generation_failure": 18,
+      "none": 0
+    },
+    "none": {
+      "retrieval_failure": 0,
+      "context_construction_failure": 0,
+      "generation_failure": 0,
+      "none": 11
+    }
+  },
+  "per_class": {
+    "retrieval_failure": {
+      "support": 8,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "context_construction_failure": {
+      "support": 10,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "generation_failure": {
+      "support": 18,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "none": {
+      "support": 11,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "rules_fired": {
+    "G12": 5,
+    "G4": 5,
+    "G5": 5,
+    "G6": 5,
+    "G9": 5,
+    "G8": 5,
+    "G7": 5,
+    "G3": 3,
+    "G2": 6,
+    "G1": 3
+  },
+  "misclassified": [],
+  "scenarios": [
+    {
+      "scenario": "healthy:attendance_policy.txt",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "ok",
+      "rule": "G12",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "retrieval_miss:attendance_policy.txt",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "relevant_not_retrieved",
+      "rule": "G4",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L1",
+      "live_correct": true
+    },
+    {
+      "scenario": "context_drop:attendance_policy.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "relevant_chunk_dropped",
+      "rule": "G5",
+      "correct": true,
+      "live_predicted": "context_construction_failure",
+      "live_rule": "L2",
+      "live_correct": true
+    },
+    {
+      "scenario": "evidence_cut:attendance_policy.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "evidence_missing_from_context",
+      "rule": "G6",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": false
+    },
+    {
+      "scenario": "contradiction:attendance_policy.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "contradicts_evidence",
+      "rule": "G9",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "refusal_with_evidence:attendance_policy.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "missed_answer",
+      "rule": "G8",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "uncited_answer:attendance_policy.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "uncited_answer_rejected",
+      "rule": "G7",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": true
+    },
+    {
+      "scenario": "healthy:examination_rules.txt",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "ok",
+      "rule": "G12",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "retrieval_miss:examination_rules.txt",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "relevant_not_retrieved",
+      "rule": "G4",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": true
+    },
+    {
+      "scenario": "context_drop:examination_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "relevant_chunk_dropped",
+      "rule": "G5",
+      "correct": true,
+      "live_predicted": "context_construction_failure",
+      "live_rule": "L6",
+      "live_correct": true
+    },
+    {
+      "scenario": "evidence_cut:examination_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "evidence_missing_from_context",
+      "rule": "G6",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": false
+    },
+    {
+      "scenario": "contradiction:examination_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "contradicts_evidence",
+      "rule": "G9",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "refusal_with_evidence:examination_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "missed_answer",
+      "rule": "G8",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "uncited_answer:examination_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "uncited_answer_rejected",
+      "rule": "G7",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": true
+    },
+    {
+      "scenario": "healthy:library_rules.txt",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "ok",
+      "rule": "G12",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "retrieval_miss:library_rules.txt",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "relevant_not_retrieved",
+      "rule": "G4",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": false
+    },
+    {
+      "scenario": "context_drop:library_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "relevant_chunk_dropped",
+      "rule": "G5",
+      "correct": true,
+      "live_predicted": "context_construction_failure",
+      "live_rule": "L2",
+      "live_correct": true
+    },
+    {
+      "scenario": "evidence_cut:library_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "evidence_missing_from_context",
+      "rule": "G6",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": false
+    },
+    {
+      "scenario": "contradiction:library_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "contradicts_evidence",
+      "rule": "G9",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "refusal_with_evidence:library_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "missed_answer",
+      "rule": "G8",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "uncited_answer:library_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "uncited_answer_rejected",
+      "rule": "G7",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": true
+    },
+    {
+      "scenario": "healthy:fee_payment.txt",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "ok",
+      "rule": "G12",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "retrieval_miss:fee_payment.txt",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "relevant_not_retrieved",
+      "rule": "G4",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": false
+    },
+    {
+      "scenario": "context_drop:fee_payment.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "relevant_chunk_dropped",
+      "rule": "G5",
+      "correct": true,
+      "live_predicted": "context_construction_failure",
+      "live_rule": "L2",
+      "live_correct": true
+    },
+    {
+      "scenario": "evidence_cut:fee_payment.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "evidence_missing_from_context",
+      "rule": "G6",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": false
+    },
+    {
+      "scenario": "contradiction:fee_payment.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "contradicts_evidence",
+      "rule": "G9",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "refusal_with_evidence:fee_payment.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "missed_answer",
+      "rule": "G8",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "uncited_answer:fee_payment.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "uncited_answer_rejected",
+      "rule": "G7",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": true
+    },
+    {
+      "scenario": "healthy:hostel_rules.txt",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "ok",
+      "rule": "G12",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "retrieval_miss:hostel_rules.txt",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "relevant_not_retrieved",
+      "rule": "G4",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L1",
+      "live_correct": true
+    },
+    {
+      "scenario": "context_drop:hostel_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "relevant_chunk_dropped",
+      "rule": "G5",
+      "correct": true,
+      "live_predicted": "context_construction_failure",
+      "live_rule": "L2",
+      "live_correct": true
+    },
+    {
+      "scenario": "evidence_cut:hostel_rules.txt",
+      "expected": "context_construction_failure",
+      "predicted": "context_construction_failure",
+      "subtype": "evidence_missing_from_context",
+      "rule": "G6",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L6",
+      "live_correct": false
+    },
+    {
+      "scenario": "contradiction:hostel_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "contradicts_evidence",
+      "rule": "G9",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "refusal_with_evidence:hostel_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "missed_answer",
+      "rule": "G8",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "uncited_answer:hostel_rules.txt",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "uncited_answer_rejected",
+      "rule": "G7",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": true
+    },
+    {
+      "scenario": "not_indexed:What minimum attendance must s",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "document_not_indexed",
+      "rule": "G3",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "not_indexed:How long does the semester exa",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "document_not_indexed",
+      "rule": "G3",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "not_indexed:How many books may a student b",
+      "expected": "retrieval_failure",
+      "predicted": "retrieval_failure",
+      "subtype": "document_not_indexed",
+      "rule": "G3",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": false
+    },
+    {
+      "scenario": "off_topic_refusal:What is the capital city of Au",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L3",
+      "live_correct": false
+    },
+    {
+      "scenario": "off_topic_refusal:Who won the football world cup",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L1",
+      "live_correct": false
+    },
+    {
+      "scenario": "off_topic_refusal:How do I bake sourdough bread ",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "retrieval_failure",
+      "live_rule": "L1",
+      "live_correct": false
+    },
+    {
+      "scenario": "correct_refusal:What is the fine for losing a ",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "hallucination:What is the fine for losing a ",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "hallucinated_answer",
+      "rule": "G1",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "correct_refusal:How many visitors are allowed ",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "hallucination:How many visitors are allowed ",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "hallucinated_answer",
+      "rule": "G1",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    },
+    {
+      "scenario": "correct_refusal:What is the late fee for payin",
+      "expected": "none",
+      "predicted": "none",
+      "subtype": "correct_refusal",
+      "rule": "G2",
+      "correct": true,
+      "live_predicted": "none",
+      "live_rule": "L7",
+      "live_correct": true
+    },
+    {
+      "scenario": "hallucination:What is the late fee for payin",
+      "expected": "generation_failure",
+      "predicted": "generation_failure",
+      "subtype": "hallucinated_answer",
+      "rule": "G1",
+      "correct": true,
+      "live_predicted": "generation_failure",
+      "live_rule": "L4",
+      "live_correct": true
+    }
+  ],
+  "without_ground_truth": {
+    "accuracy": 0.617,
+    "labels": [
+      "retrieval_failure",
+      "context_construction_failure",
+      "generation_failure",
+      "none"
+    ],
+    "confusion_matrix": {
+      "retrieval_failure": {
+        "retrieval_failure": 3,
+        "context_construction_failure": 0,
+        "generation_failure": 2,
+        "none": 3
+      },
+      "context_construction_failure": {
+        "retrieval_failure": 5,
+        "context_construction_failure": 5,
+        "generation_failure": 0,
+        "none": 0
+      },
+      "generation_failure": {
+        "retrieval_failure": 0,
+        "context_construction_failure": 0,
+        "generation_failure": 13,
+        "none": 5
+      },
+      "none": {
+        "retrieval_failure": 2,
+        "context_construction_failure": 0,
+        "generation_failure": 1,
+        "none": 8
+      }
+    },
+    "per_class": {
+      "retrieval_failure": {
+        "support": 8,
+        "precision": 0.3,
+        "recall": 0.375,
+        "f1": 0.3333
+      },
+      "context_construction_failure": {
+        "support": 10,
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667
+      },
+      "generation_failure": {
+        "support": 18,
+        "precision": 0.8125,
+        "recall": 0.7222,
+        "f1": 0.7647
+      },
+      "none": {
+        "support": 11,
+        "precision": 0.5,
+        "recall": 0.7273,
+        "f1": 0.5926
+      }
+    },
+    "rules_fired": {
+      "L7": 16,
+      "L1": 4,
+      "L2": 4,
+      "L6": 7,
+      "L4": 8,
+      "L3": 8
+    },
+    "misclassified": [
+      {
+        "scenario": "evidence_cut:attendance_policy.txt",
+        "expected": "context_construction_failure",
+        "predicted": "retrieval_failure",
+        "subtype": "evidence_missing_from_context",
+        "rule": "L6",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L6",
+        "live_correct": false
+      },
+      {
+        "scenario": "refusal_with_evidence:attendance_policy.txt",
+        "expected": "generation_failure",
+        "predicted": "none",
+        "subtype": "missed_answer",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "evidence_cut:examination_rules.txt",
+        "expected": "context_construction_failure",
+        "predicted": "retrieval_failure",
+        "subtype": "evidence_missing_from_context",
+        "rule": "L6",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L6",
+        "live_correct": false
+      },
+      {
+        "scenario": "refusal_with_evidence:examination_rules.txt",
+        "expected": "generation_failure",
+        "predicted": "none",
+        "subtype": "missed_answer",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "retrieval_miss:library_rules.txt",
+        "expected": "retrieval_failure",
+        "predicted": "generation_failure",
+        "subtype": "relevant_not_retrieved",
+        "rule": "L3",
+        "correct": false,
+        "live_predicted": "generation_failure",
+        "live_rule": "L3",
+        "live_correct": false
+      },
+      {
+        "scenario": "evidence_cut:library_rules.txt",
+        "expected": "context_construction_failure",
+        "predicted": "retrieval_failure",
+        "subtype": "evidence_missing_from_context",
+        "rule": "L6",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L6",
+        "live_correct": false
+      },
+      {
+        "scenario": "refusal_with_evidence:library_rules.txt",
+        "expected": "generation_failure",
+        "predicted": "none",
+        "subtype": "missed_answer",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "retrieval_miss:fee_payment.txt",
+        "expected": "retrieval_failure",
+        "predicted": "generation_failure",
+        "subtype": "relevant_not_retrieved",
+        "rule": "L3",
+        "correct": false,
+        "live_predicted": "generation_failure",
+        "live_rule": "L3",
+        "live_correct": false
+      },
+      {
+        "scenario": "evidence_cut:fee_payment.txt",
+        "expected": "context_construction_failure",
+        "predicted": "retrieval_failure",
+        "subtype": "evidence_missing_from_context",
+        "rule": "L6",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L6",
+        "live_correct": false
+      },
+      {
+        "scenario": "refusal_with_evidence:fee_payment.txt",
+        "expected": "generation_failure",
+        "predicted": "none",
+        "subtype": "missed_answer",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "evidence_cut:hostel_rules.txt",
+        "expected": "context_construction_failure",
+        "predicted": "retrieval_failure",
+        "subtype": "evidence_missing_from_context",
+        "rule": "L6",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L6",
+        "live_correct": false
+      },
+      {
+        "scenario": "refusal_with_evidence:hostel_rules.txt",
+        "expected": "generation_failure",
+        "predicted": "none",
+        "subtype": "missed_answer",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "not_indexed:What minimum attendance must s",
+        "expected": "retrieval_failure",
+        "predicted": "none",
+        "subtype": "document_not_indexed",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "not_indexed:How long does the semester exa",
+        "expected": "retrieval_failure",
+        "predicted": "none",
+        "subtype": "document_not_indexed",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "not_indexed:How many books may a student b",
+        "expected": "retrieval_failure",
+        "predicted": "none",
+        "subtype": "document_not_indexed",
+        "rule": "L7",
+        "correct": false,
+        "live_predicted": "none",
+        "live_rule": "L7",
+        "live_correct": false
+      },
+      {
+        "scenario": "off_topic_refusal:What is the capital city of Au",
+        "expected": "none",
+        "predicted": "generation_failure",
+        "subtype": "correct_refusal",
+        "rule": "L3",
+        "correct": false,
+        "live_predicted": "generation_failure",
+        "live_rule": "L3",
+        "live_correct": false
+      },
+      {
+        "scenario": "off_topic_refusal:Who won the football world cup",
+        "expected": "none",
+        "predicted": "retrieval_failure",
+        "subtype": "correct_refusal",
+        "rule": "L1",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L1",
+        "live_correct": false
+      },
+      {
+        "scenario": "off_topic_refusal:How do I bake sourdough bread ",
+        "expected": "none",
+        "predicted": "retrieval_failure",
+        "subtype": "correct_refusal",
+        "rule": "L1",
+        "correct": false,
+        "live_predicted": "retrieval_failure",
+        "live_rule": "L1",
+        "live_correct": false
+      }
+    ]
+  }
+}

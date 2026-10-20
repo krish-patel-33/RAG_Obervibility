@@ -107,6 +107,15 @@ class Settings(BaseSettings):
     max_context_chars: int = 24000
     openai_max_retries: int = 3
 
+    # Evaluation & diagnosis
+    # Live queries are evaluated in the background after the response is sent.
+    evaluation_enabled: bool = True
+    # "auto" uses the LLM judge when a real provider is configured, otherwise heuristics.
+    evaluation_judge: Literal["auto", "llm", "heuristic"] = "auto"
+    faithfulness_threshold: float = 0.70
+    answer_relevance_threshold: float = 0.50
+    reference_overlap_threshold: float = 0.50
+
     # Observability
     langfuse_enabled: bool = False
     langfuse_public_key: SecretStr = Field(default="", repr=False)
@@ -117,6 +126,12 @@ class Settings(BaseSettings):
     allowed_pdf_content_types: set[str] = {
         "application/pdf",
         "application/x-pdf",
+        "application/octet-stream",
+    }
+    allowed_text_content_types: set[str] = {
+        "text/plain",
+        "text/markdown",
+        "text/x-markdown",
         "application/octet-stream",
     }
 
@@ -223,6 +238,9 @@ class Settings(BaseSettings):
         "min_citation_score",
         "min_vector_similarity",
         "min_keyword_score",
+        "faithfulness_threshold",
+        "answer_relevance_threshold",
+        "reference_overlap_threshold",
     )
     @classmethod
     def score_must_be_probability(cls, value: float | None) -> float | None:

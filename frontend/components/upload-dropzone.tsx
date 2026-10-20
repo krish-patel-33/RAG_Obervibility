@@ -13,7 +13,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusChip } from "@/components/status-chip";
 import { ErrorState } from "@/components/error-state";
 
-export function UploadDropzone() {
+const SUPPORTED = [".pdf", ".txt", ".md", ".markdown"];
+
+export function UploadDropzone({ onIndexed }: { onIndexed?: () => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -42,8 +44,8 @@ export function UploadDropzone() {
       setError(null);
       setProgress(0);
       try {
-        if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-          throw new Error("Only PDF files are supported.");
+        if (!SUPPORTED.some((extension) => file.name.toLowerCase().endsWith(extension))) {
+          throw new Error("Only PDF, plain-text (.txt) and Markdown (.md) files are supported.");
         }
         const response = await client.ingest(file, setProgress);
         const initial: StoredJob = {
@@ -61,17 +63,18 @@ export function UploadDropzone() {
         upsertJob(initial);
         setActiveJobId(response.job_id);
         await pollJob(response.job_id, response.filename);
+        onIndexed?.();
       } catch (caught) {
         const message = caught instanceof RagApiError ? caught.message : caught instanceof Error ? caught.message : "Upload failed.";
         setError(message);
       }
     },
-    [client, pollJob, upsertJob]
+    [client, onIndexed, pollJob, upsertJob]
   );
 
   return (
     <div className="space-y-4">
-      <input ref={inputRef} className="hidden" type="file" accept="application/pdf" onChange={(event) => upload(event.target.files?.[0])} />
+      <input ref={inputRef} className="hidden" type="file" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown" onChange={(event) => upload(event.target.files?.[0])} />
       <motion.div
         onDragOver={(event) => {
           event.preventDefault();
@@ -89,10 +92,10 @@ export function UploadDropzone() {
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10">
           <FileUp className="h-6 w-6 text-cyan-200" />
         </div>
-        <h2 className="mt-5 text-lg font-semibold text-white">Drop PDFs to index</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">Upload source documents into your RAG pipeline and watch durable ingestion state in real time.</p>
+        <h2 className="mt-5 text-lg font-semibold text-white">Drop documents to index</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">PDF, plain-text and Markdown files are parsed, chunked, embedded and stored for retrieval.</p>
         <Button className="mt-6" onClick={() => inputRef.current?.click()}>
-          Select PDF
+          Select file
         </Button>
       </motion.div>
 

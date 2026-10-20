@@ -61,20 +61,20 @@ def select_citations_for_answer(answer: str, citations: list[dict]) -> tuple[str
         unique_labels = list(dict.fromkeys(labels_in_answer))
         return answer, [valid_by_label[label] for label in unique_labels]
 
-    if _is_no_answer(answer) or not citations:
+    if is_no_answer(answer) or not citations:
         return answer, []
 
     return answer, []
 
 
 def answer_has_strong_citation_support(answer: str, citations: list[dict], min_score: float) -> bool:
-    if _is_no_answer(answer):
+    if is_no_answer(answer):
         return True
     valid_by_label = {citation["label"]: citation for citation in citations if float(citation.get("score", 0.0)) >= min_score}
     if not valid_by_label:
         return False
 
-    for claim in _extract_claims(answer):
+    for claim in extract_claims(answer):
         labels = citation_labels(claim)
         if not labels:
             return False
@@ -87,12 +87,12 @@ def citation_labels(text: str) -> list[str]:
     return [label for group in CITATION_RE.findall(text) for label in LABEL_RE.findall(group)]
 
 
-def _is_no_answer(answer: str) -> bool:
+def is_no_answer(answer: str) -> bool:
     normalized = answer.lower()
     return "could not find" in normalized or "not found" in normalized or "not in the uploaded documents" in normalized
 
 
-def _extract_claims(answer: str) -> list[str]:
+def extract_claims(answer: str) -> list[str]:
     """Split an answer into claim blocks (paragraphs and list items) that must carry a citation.
 
     LLMs usually cite once at the end of a paragraph or list item, so each

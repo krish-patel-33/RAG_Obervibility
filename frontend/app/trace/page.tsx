@@ -1,101 +1,93 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { Search } from "lucide-react";
-import { RagApiError } from "@/lib/api";
-import type { QueryTrace } from "@/lib/types";
-import { useConsoleSettings } from "@/lib/settings";
-import { useConsoleStore } from "@/lib/store";
+import { useApi } from "@/lib/use-api";
+import { formatMs } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TraceViewer } from "@/components/trace-viewer";
 import { ErrorState } from "@/components/error-state";
+import { CategoryChip } from "@/components/category-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TracePage() {
-  const { client } = useConsoleSettings();
-  const { queries } = useConsoleStore();
-  const [queryLogId, setQueryLogId] = useState("");
-  const [trace, setTrace] = useState<QueryTrace | null>(queries.find((query) => query.trace)?.trace ?? null);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <Suspense fallback={<Skeleton className="h-96" />}>
+      <TraceInspector />
+    </Suspense>
+  );
+}
 
-  const recentTraces = useMemo(() => queries.filter((query) => query.query_log_id).slice(0, 8), [queries]);
+function TraceInspector() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const id = Number(params.get("id")) || null;
+  const [input, setInput] = useState(id ? String(id) : "");
 
-  useEffect(() => {
-    if (!trace) {
-      const latestTrace = queries.find((query) => query.trace)?.trace;
-      if (latestTrace) setTrace(latestTrace);
-    }
-  }, [queries, trace]);
+  const trace = useApi((client) => (id ? client.trace(id) : Promise.resolve(null)), [id], {
+    pollMs: 2500,
+    shouldPoll: (data) => data?.evaluation_status === "pending"
+  });
+  const recent = useApi((client) => client.queries({ limit: 12, source: "all" }), []);
 
-  const loadTrace = async (id: number) => {
-    setError(null);
-    try {
-      setTrace(await client.trace(id));
-    } catch (caught) {
-      const message = caught instanceof RagApiError ? caught.message : caught instanceof Error ? caught.message : "Unable to load trace.";
-      setError(message);
-    }
-  };
-
-  const submit = (event: FormEvent) => {
+  const open = (event: FormEvent) => {
     event.preventDefault();
-    const id = Number(queryLogId);
-    if (Number.isFinite(id) && id > 0) loadTrace(id);
+    const next = Number(input);
+    if (Number.isFinite(next) && next > 0) router.push(`/trace?id=${next}`);
   };
 
   return (
     <div>
-      <PageHeader title="Source Trace Panel" description="Inspect retrieved chunks, citations, validation gates, model usage, and latency metadata." />
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <PageHeader title="Trace inspector" description="Everything that happened while answering one question: stage timings, retrieved evidence, the exact LLM context, evaluation scores and the diagnosis." />
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Open Trace</CardTitle>
-              <CardDescription>Enter a query log ID from chat.</CardDescription>
+              <CardTitle>Open trace</CardTitle>
+              <CardDescription>Enter a trace (query log) ID.</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={submit} className="flex gap-2">
-                <Input value={queryLogId} onChange={(event) => setQueryLogId(event.target.value)} inputMode="numeric" placeholder="Query log ID" />
-                <Button type="submit" size="icon" title="Fetch trace">
+              <form onSubmit={open} className="flex gap-2">
+                <Input value={input} onChange={(event) => setInput(event.target.value)} inputMode="numeric" placeholder="Trace ID" />
+                <Button type="submit" size="icon" title="Open trace">
                   <Search className="h-4 w-4" />
                 </Button>
               </form>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Recent</CardTitle>
-              <CardDescription>Traces from this browser session.</CardDescription>
+              <CardDescription>Latest traces, live and evaluation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {recentTraces.length === 0 ? (
-                <div className="rounded-md border border-dashed border-white/10 p-6 text-center text-sm text-zinc-500">No recent trace IDs.</div>
-              ) : (
-                recentTraces.map((query) => (
-                  <button
-                    key={query.trace_id}
-                    type="button"
-                    onClick={() => query.query_log_id && loadTrace(query.query_log_id)}
-                    className="w-full rounded-md border border-white/10 bg-white/[0.03] p-3 text-left transition-colors hover:bg-white/[0.06]"
-                  >
-                    <div className="truncate text-sm font-medium text-white">{query.question}</div>
-                    <div className="mt-2 flex gap-2">
-                      <Badge>{query.query_log_id}</Badge>
-                      <Badge>{query.no_answer ? "no answer" : "answered"}</Badge>
-                    </div>
-                  </button>
-                ))
-              )}
+              {(recent.data?.items ?? []).map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/trace?id=${item.id}`}
+                  className={`block rounded-md border p-3 transition-colors hover:bg-white/[0.06] ${item.id === id ? "border-cyan-300/40 bg-cyan-300/5" : "border-white/10 bg-white/[0.03]"}`}
+                >
+                  <div className="truncate text-sm text-white">{item.query}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                    <span>#{item.id}</span>
+                    <span>{formatMs(item.latency_ms)}</span>
+                    <CategoryChip category={item.failure_category} confidence={item.confidence} />
+                  </div>
+                </Link>
+              ))}
+              {recent.data && recent.data.items.length === 0 && <div className="text-sm text-zinc-500">No traces yet.</div>}
             </CardContent>
           </Card>
-
-          {error && <ErrorState title="Trace unavailable" message={error} />}
         </div>
-        <TraceViewer trace={trace} />
+        <div>
+          {trace.error && <div className="mb-4"><ErrorState title="Trace unavailable" message={trace.error} /></div>}
+          {id && trace.loading && !trace.data ? <Skeleton className="h-96" /> : <TraceViewer trace={trace.data} onUpdate={(next) => trace.setData(next)} />}
+        </div>
       </div>
     </div>
   );

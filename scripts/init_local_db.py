@@ -3,7 +3,8 @@ from sqlalchemy import text
 from app.db.base import Base
 from app.db.session import engine
 from app.db.types import is_sqlite_url
-from app.models import citation, chunk, document, query_log  # noqa: F401
+from app.services.schema import add_missing_sqlite_columns
+from app.models import citation, chunk, document, evaluation, query_log  # noqa: F401
 
 
 def main() -> None:
@@ -11,6 +12,7 @@ def main() -> None:
         raise SystemExit("Local DB init is only for sqlite. Use `alembic upgrade head` for Postgres.")
 
     Base.metadata.create_all(bind=engine)
+    add_missing_sqlite_columns(engine)
     with engine.begin() as connection:
         connection.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"))
         current = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
