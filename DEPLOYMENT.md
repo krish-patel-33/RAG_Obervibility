@@ -1,6 +1,6 @@
 # Deployment
 
-TraceRAG is designed as a split deployment:
+RAGwatch is designed as a split deployment:
 
 - `frontend/`: deploy to Vercel as a Next.js app.
 - Backend root: deploy as a Dockerized FastAPI service on Render, Railway, or Cloud Run.
